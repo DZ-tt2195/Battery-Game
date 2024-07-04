@@ -107,7 +107,6 @@ public class Manager : MonoBehaviour
 
             GetPlayers();
             CreateRobots();
-            CreateEvents();
             CreateActions();
             StartCoroutine(PlayUntilFinish());
         }
@@ -128,7 +127,6 @@ public class Manager : MonoBehaviour
 
             CreateRobots();
             CreateActions();
-            CreateEvents();
             StartCoroutine(PlayUntilFinish());
         }
     }
@@ -199,26 +197,6 @@ public class Manager : MonoBehaviour
         }
     }
 
-    void CreateEvents()
-    {
-        DownloadSheets.instance.eventData = DownloadSheets.instance.eventData.Shuffle();
-
-        for (int i = 0; i < 2; i++)
-        {
-            Card nextCard = null;
-            if (PhotonNetwork.IsConnected)
-            {
-                nextCard = PhotonNetwork.Instantiate(CarryVariables.instance.eventPrefab.name, new Vector3(-10000, -10000), new Quaternion()).GetComponent<Card>();
-                nextCard.pv.RPC("GetEventFile", RpcTarget.All, i, DownloadSheets.instance.eventData[i].cardName);
-            }
-            else
-            {
-                nextCard = Instantiate(CarryVariables.instance.eventPrefab, new Vector3(-10000, -10000), new Quaternion());
-                nextCard.GetEventFile(i, DownloadSheets.instance.eventData[i].cardName);
-            }
-        }
-    }
-
     #endregion
 
 #region Gameplay
@@ -246,17 +224,6 @@ public class Manager : MonoBehaviour
         turnNumber = number;
         Log.instance.AddText("");
         Log.instance.AddText($"ROUND {turnNumber}");
-        foreach (Card next in listOfEvents)
-        {
-            if (ActiveEvent(next.name))
-                Log.instance.AddText($"{next.name} is active.");
-        }
-    }
-
-    public bool ActiveEvent(string eventName)
-    {
-        Card foundEvent = listOfEvents.Find(card => card.dataFile.cardName == eventName);
-        return foundEvent != null && foundEvent.dataFile.eventTimes.Contains(turnNumber);
     }
 
     #endregion

@@ -17,7 +17,6 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
     TMP_Text coinText;
     TMP_Text crownText;
     Image artBox;
-    List<CanvasGroup> listOfClocks = new(); 
 
     private void Awake()
     {
@@ -31,17 +30,6 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
         {
             coinText = cg.transform.Find("Coin").GetComponent<TMP_Text>();
             crownText = cg.transform.Find("Crown").GetComponent<TMP_Text>();
-        }
-        catch
-        {
-
-        }
-
-        try
-        {
-            Transform clockTransform = cg.transform.Find("Bundle of Clocks");
-            foreach (Transform child in clockTransform)
-                listOfClocks.Add(child.GetComponent<CanvasGroup>());
         }
         catch
         {
@@ -103,16 +91,6 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
             {
                 crownText.gameObject.SetActive(false);
             }
-        }
-
-        for (int i = 0; i < listOfClocks.Count; i++)
-        {
-            if (dataFile.eventTimes.Count == 0)
-                listOfClocks[i].alpha = 0;
-            else if (dataFile.eventTimes.Contains(i + 1))
-                listOfClocks[i].alpha = 1;
-            else
-                listOfClocks[i].alpha = 0.33f;
         }
     }
 

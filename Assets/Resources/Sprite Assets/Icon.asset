@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Icon
   m_EditorClassIdentifier: 
   hashCode: 2518699
-  material: {fileID: 7746599514903413973}
+  material: {fileID: 7099732502794867428}
   materialHashCode: 0
   m_Version: 1.1.0
   m_FaceInfo:
@@ -44,8 +44,8 @@ MonoBehaviour:
     m_Unicode: 65534
     m_GlyphIndex: 0
     m_Scale: 1
-    m_Name: Card
-    m_HashCode: 2445076
+    m_Name: Battery
+    m_HashCode: -1172828179
   - m_ElementType: 2
     m_Unicode: 65534
     m_GlyphIndex: 1
@@ -56,82 +56,104 @@ MonoBehaviour:
     m_Unicode: 65534
     m_GlyphIndex: 2
     m_Scale: 1
+    m_Name: Card
+    m_HashCode: 2445076
+  - m_ElementType: 2
+    m_Unicode: 65534
+    m_GlyphIndex: 3
+    m_Scale: 1
     m_Name: Pos Crown
     m_HashCode: -1901660693
   - m_ElementType: 2
     m_Unicode: 65534
-    m_GlyphIndex: 3
+    m_GlyphIndex: 4
     m_Scale: 1
     m_Name: Coin
     m_HashCode: 2451115
   m_SpriteGlyphTable:
   - m_Index: 0
     m_Metrics:
-      m_Width: 249
-      m_Height: 362
+      m_Width: 192
+      m_Height: 340
       m_HorizontalBearingX: -15
-      m_HorizontalBearingY: 325
-      m_HorizontalAdvance: 249
+      m_HorizontalBearingY: 310
+      m_HorizontalAdvance: 192
     m_GlyphRect:
-      m_X: 439
-      m_Y: 6
-      m_Width: 249
-      m_Height: 362
+      m_X: 1514
+      m_Y: 10
+      m_Width: 192
+      m_Height: 340
     m_Scale: 1
     m_AtlasIndex: 0
     m_ClassDefinitionType: 0
-    sprite: {fileID: -1206431220, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
+    sprite: {fileID: -2138394596, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
   - m_Index: 1
     m_Metrics:
-      m_Width: 414
-      m_Height: 365
-      m_HorizontalBearingX: -30
-      m_HorizontalBearingY: 355
-      m_HorizontalAdvance: 414
+      m_Width: 393
+      m_Height: 347
+      m_HorizontalBearingX: -25
+      m_HorizontalBearingY: 345
+      m_HorizontalAdvance: 393
     m_GlyphRect:
-      m_X: 1126
+      m_X: 1069
       m_Y: 6
-      m_Width: 414
-      m_Height: 365
+      m_Width: 393
+      m_Height: 347
     m_Scale: 1
     m_AtlasIndex: 0
     m_ClassDefinitionType: 0
-    sprite: {fileID: -711692519, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
+    sprite: {fileID: 1591978891, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
   - m_Index: 2
     m_Metrics:
-      m_Width: 415
-      m_Height: 365
-      m_HorizontalBearingX: -30
-      m_HorizontalBearingY: 355
-      m_HorizontalAdvance: 415
+      m_Width: 238
+      m_Height: 345
+      m_HorizontalBearingX: -15
+      m_HorizontalBearingY: 310
+      m_HorizontalAdvance: 238
+    m_GlyphRect:
+      m_X: 416
+      m_Y: 5
+      m_Width: 238
+      m_Height: 345
+    m_Scale: 1
+    m_AtlasIndex: 0
+    m_ClassDefinitionType: 0
+    sprite: {fileID: -933398206, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
+  - m_Index: 3
+    m_Metrics:
+      m_Width: 393
+      m_Height: 347
+      m_HorizontalBearingX: -25
+      m_HorizontalBearingY: 345
+      m_HorizontalAdvance: 393
     m_GlyphRect:
       m_X: 0
       m_Y: 3
-      m_Width: 415
-      m_Height: 365
+      m_Width: 393
+      m_Height: 347
     m_Scale: 1
     m_AtlasIndex: 0
     m_ClassDefinitionType: 0
-    sprite: {fileID: 1958888018, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
-  - m_Index: 3
+    sprite: {fileID: -1606356007, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
+  - m_Index: 4
     m_Metrics:
-      m_Width: 368
-      m_Height: 368
-      m_HorizontalBearingX: -15
-      m_HorizontalBearingY: 330
-      m_HorizontalAdvance: 368
+      m_Width: 349
+      m_Height: 350
+      m_HorizontalBearingX: -20
+      m_HorizontalBearingY: 320
+      m_HorizontalAdvance: 349
     m_GlyphRect:
-      m_X: 736
+      m_X: 699
       m_Y: 0
-      m_Width: 368
-      m_Height: 368
+      m_Width: 349
+      m_Height: 350
     m_Scale: 1
     m_AtlasIndex: 0
     m_ClassDefinitionType: 0
-    sprite: {fileID: 827645915, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
+    sprite: {fileID: -1680019744, guid: dd57e5c73c6054d2fac9509abcc5b49c, type: 3}
   spriteInfoList: []
   fallbackSpriteAssets: []
---- !u!21 &7746599514903413973
+--- !u!21 &7099732502794867428
 Material:
   serializedVersion: 8
   m_ObjectHideFlags: 1

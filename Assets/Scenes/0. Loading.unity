@@ -2907,9 +2907,10 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'Icons: <link="Card"><sprite="Icon" name="Card"></link><link="Coin"><sprite="Icon"
-    name="Coin"></link><link="Neg Crown"><sprite="Icon" name="Neg Crown"></link><link="Pos
-    Crown"><sprite="Icon" name="Pos Crown"></link>'
+  m_text: 'Icons: <link="Battery"><sprite="Icon" name="Battery"><link="Card"><sprite="Icon"
+    name="Card"></link><link="Coin"><sprite="Icon" name="Coin"></link><link="Neg
+    Crown"><sprite="Icon" name="Neg Crown"></link><link="Pos Crown"><sprite="Icon"
+    name="Pos Crown"></link>'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

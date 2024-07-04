@@ -15,24 +15,22 @@ public class CardData
     public string textBox;
     public int coinCost;
     public int scoringCrowns;
+    public int startingBatteries;
     public string[] playInstructions;
-    public string[] replaceInstructions;
-    public int numDraw;
-    public int numGain;
+    public int numCards;
+    public int numCoins;
     public int numCrowns;
-    public int numPlayCost;
+    public int numBatteries;
     public int numMisc;
-    public bool isDirector;
     public string artCredit;
     public PlayerTarget[] whoToTarget;
-    public List<int> eventTimes;
 }
 
 public enum PlayerTarget { You, All, Others }
 
 public class DownloadSheets : MonoBehaviour
 {
-    private string ID = "1P-uWG_LQwUUX57IsNwXg-FHdNa3b1dzpJt0oe7en7PY";
+    private string ID = "1AFdV9gCL2OHZ3zmAtwD8NEMoG1H9nT7fpO4Smxiko9w";
     private string apiKey = "AIzaSyCl_GqHd1-WROqf7i2YddE3zH6vSv3sNTA";
     private string baseUrl = "https://sheets.googleapis.com/v4/spreadsheets/";
 
@@ -41,7 +39,6 @@ public class DownloadSheets : MonoBehaviour
     Dictionary<string, int> cardSheetsColumns = new();
     [ReadOnly] public List<CardData> mainActionData = new();
     [ReadOnly] public List<CardData> robotData = new();
-    [ReadOnly] public List<CardData> eventData = new();
 
     private void Awake()
     {
@@ -68,7 +65,6 @@ public class DownloadSheets : MonoBehaviour
             CoroutineGroup group = new(this);
             group.StartCoroutine(Download("Main Action"));
             group.StartCoroutine(Download("Robots"));
-            group.StartCoroutine(Download("Events"));
 
             while (group.AnyProcessing)
                 yield return null;
@@ -76,7 +72,6 @@ public class DownloadSheets : MonoBehaviour
 
         mainActionData = ReadCardData("Main Action");
         robotData = ReadCardData("Robots");
-        eventData = ReadCardData("Events");
     }
 
     IEnumerator Download(string range)
@@ -146,20 +141,17 @@ public class DownloadSheets : MonoBehaviour
             nextData.textBox = data[i][cardSheetsColumns[nameof(CardData.textBox)]];
             nextData.coinCost = StringToInt(data[i][cardSheetsColumns[nameof(CardData.coinCost)]]);
             nextData.scoringCrowns = StringToInt(data[i][cardSheetsColumns[nameof(CardData.scoringCrowns)]]);
+            nextData.startingBatteries = StringToInt(data[i][cardSheetsColumns[nameof(CardData.startingBatteries)]]);
 
             string nextRow = data[i][cardSheetsColumns[nameof(CardData.playInstructions)]];
             nextData.playInstructions = (nextRow == "") ? new string[1] { "None" } : SpliceString(nextRow, '-');
 
-            nextRow = data[i][cardSheetsColumns[nameof(CardData.replaceInstructions)]];
-            nextData.replaceInstructions = (nextRow == "") ? new string[1] { "None" } : SpliceString(nextRow, '-');
-
-            nextData.numDraw = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numDraw)]]);
-            nextData.numGain = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numGain)]]);
+            nextData.numCards = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numCards)]]);
+            nextData.numCoins = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numCoins)]]);
             nextData.numCrowns = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numCrowns)]]);
-            nextData.numPlayCost = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numPlayCost)]]);
+            nextData.numBatteries = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numBatteries)]]);
             nextData.numMisc = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numMisc)]]);
 
-            nextData.isDirector = data[i][cardSheetsColumns[nameof(CardData.isDirector)]] == "TRUE";
             nextData.artCredit = data[i][cardSheetsColumns[nameof(CardData.artCredit)]];
 
             string[] listOfTargets = (data[i][cardSheetsColumns[nameof(CardData.whoToTarget)]].Equals("") ? new string[1] { "None" } :
@@ -168,20 +160,6 @@ public class DownloadSheets : MonoBehaviour
             for (int j = 0; j < listOfTargets.Length; j++)
                 convertToTargets[j] = StringToPlayerTarget(listOfTargets[j]);
             nextData.whoToTarget = convertToTargets;
-
-            string[] arrayOfInts = (data[i][cardSheetsColumns[nameof(CardData.eventTimes)]].Equals("") ? null :
-                SpliceString(data[i][cardSheetsColumns[nameof(CardData.eventTimes)]].Trim().ToUpper(), ','));
-            if (arrayOfInts == null)
-            {
-                nextData.eventTimes = new();
-            }
-            else
-            {
-                List<int> listOfInts = new();
-                for (int j = 0; j < arrayOfInts.Length; j++)
-                    listOfInts.Add(StringToInt(arrayOfInts[j]));
-                nextData.eventTimes = listOfInts;
-            }
         }
 
         return listOfData;

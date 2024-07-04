@@ -82,25 +82,11 @@ public class Card : MonoBehaviour
     }
 
     [PunRPC]
-    public void GetEventFile(int slot, string card)
-    {
-        this.dataFile = DownloadSheets.instance.eventData.Find(file => file.cardName == card);
-        this.transform.SetParent(Manager.instance.events);
-        this.transform.localPosition = new Vector3(-800 + 250 * slot, 525);
-        Manager.instance.listOfEvents.Add(this);
-        this.originalSprite = Resources.Load<Sprite>($"Event/{this.dataFile.cardName}");
-        Log.instance.AddText($"Using {this.dataFile.cardName}.");
-        OtherSetup();
-    }
-
-    [PunRPC]
     public void GetRobotFile(int fileSlot)
     {
         this.dataFile = DownloadSheets.instance.robotData[fileSlot];
         this.transform.SetParent(Manager.instance.deck);
         this.originalSprite = Resources.Load<Sprite>($"Robot/{this.dataFile.cardName}");
-        if (dataFile.isDirector)
-            background.color = Color.black;
         OtherSetup();
     }
 
@@ -110,7 +96,6 @@ public class Card : MonoBehaviour
         this.gameObject.GetComponent<CardLayout>().FillInCards(this.dataFile, this.originalSprite, background.color);
 
         GetMethods(dataFile.playInstructions);
-        GetMethods(dataFile.replaceInstructions);
     }
 
     void GetMethods(string[] listOfInstructions)
@@ -215,14 +200,6 @@ public class Card : MonoBehaviour
             Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} ignores {this.name}'s instructions.", logged });
     }
 
-    public IEnumerator ReplaceInstructions(Player player, int logged)
-    {
-        if (player.ignoreInstructions == 0 || Manager.instance.listOfActions.Contains(this))
-            yield return ResolveInstructions(dataFile.replaceInstructions, player, logged);
-        else
-            Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} ignores {this.name}'s instructions.", logged });
-    }
-
     [PunRPC]
     void StopInstructions()
     {
@@ -291,13 +268,10 @@ public class Card : MonoBehaviour
                 switch (next)
                 {
                     case nameof(DrawCards):
-                        popup.AddTextButton($"+{dataFile.numDraw} Card");
+                        popup.AddTextButton($"+{dataFile.numCards} Card");
                         break;
                     case nameof(GainCoins):
-                        popup.AddTextButton($"+{dataFile.numGain} Coin");
-                        break;
-                    case nameof(ReplaceCardOrMore):
-                        popup.AddTextButton($"Replace 1 Card");
+                        popup.AddTextButton($"+{dataFile.numCoins} Coin");
                         break;
                     default:
                         popup.AddTextButton(next);
@@ -327,21 +301,21 @@ public class Card : MonoBehaviour
     IEnumerator DrawCards(Player player, int logged)
     {
         yield return null;
-        player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[2] {dataFile.numDraw, logged});
+        player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[2] {dataFile.numCards, logged});
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator GainCoins(Player player, int logged)
     {
         yield return null;
-        player.MultiFunction(nameof(player.GainCoin), RpcTarget.All, new object[2] { dataFile.numGain, logged });
+        player.MultiFunction(nameof(player.GainCoin), RpcTarget.All, new object[2] { dataFile.numCoins, logged });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator LoseCoins(Player player, int logged)
     {
         yield return null;
-        player.MultiFunction(nameof(player.LoseCoin), RpcTarget.All, new object[2] { dataFile.numGain, logged });
+        player.MultiFunction(nameof(player.LoseCoin), RpcTarget.All, new object[2] { dataFile.numCoins, logged });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
@@ -359,52 +333,6 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator ReplaceCardOrMore(Player player, int logged)
-    {
-        List<Card> cardsToReplace = player.listOfPlay;
-
-        if (cardsToReplace.Count == 0)
-        {
-            MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-            yield break;
-        }
-
-        yield return player.ChooseCardToPlay(player.listOfHand.Where(
-            card => card.dataFile.coinCost <= player.coins && card.dataFile.coinCost >= card.dataFile.numPlayCost).
-            ToList(), cardsToReplace, logged);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator ReplaceNonJunkWithJunk(Player player, int logged)
-    {
-        List<Card> cardsToReplace = player.listOfPlay.Where(card => card.name != "Junk").ToList();
-        if (cardsToReplace.Count == 0)
-        {
-            player.chosenCard = null;
-            MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-            yield break;
-        }
-
-        yield return player.ChooseCardToPlay(new() { player.CreateJunkRPC(false, -1)}, cardsToReplace, logged);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator ReplaceCardOrLess(Player player, int logged)
-    {
-        List<Card> cardsToReplace = player.listOfPlay;
-
-        if (cardsToReplace.Count == 0)
-        {
-            MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-            yield break;
-        }
-
-        yield return player.ChooseCardToPlay(player.listOfHand.Where(
-            card => card.dataFile.coinCost <= player.coins && card.dataFile.coinCost <= card.dataFile.numPlayCost).
-            ToList(), cardsToReplace, logged);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
     IEnumerator DiscardHand(Player player, int logged)
     {
         yield return null;
@@ -415,9 +343,9 @@ public class Card : MonoBehaviour
 
     IEnumerator MandatoryDiscard(Player player, int logged)
     {
-        for (int i = 0; i<dataFile.numDraw; i++)
+        for (int i = 0; i<dataFile.numCards; i++)
         {
-            Manager.instance.instructions.text = $"Discard a card ({dataFile.numDraw-i} more).";
+            Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards-i} more).";
             yield return player.ChooseCard(player.listOfHand, false);
             player.DiscardRPC(player.chosenCard, logged);
         }
@@ -426,9 +354,9 @@ public class Card : MonoBehaviour
 
     IEnumerator OptionalDiscard(Player player, int logged)
     {
-        for (int i = 0; i < dataFile.numDraw; i++)
+        for (int i = 0; i < dataFile.numCards; i++)
         {
-            Manager.instance.instructions.text = $"Discard a card ({dataFile.numDraw - i} more)?";
+            Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards - i} more)?";
             yield return player.ChooseCard(player.listOfHand, i == 0);
 
             if (player.chosenCard == null)
@@ -453,24 +381,6 @@ public class Card : MonoBehaviour
     IEnumerator ChooseFromHand(Player player, int logged)
     {
         yield return player.ChooseCard(player.listOfHand, false);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator DoPlayAbility(Player player, int logged)
-    {
-        if (player.chosenCard != null && !player.chosenCard.dataFile.isDirector)
-            yield return player.chosenCard.PlayInstructions(player, logged + 1);
-        else
-            Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{player.chosenCard} can't be done by directors.", logged });
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator DoReplaceAbility(Player player, int logged)
-    {
-        if (player.chosenCard != null && !player.chosenCard.dataFile.isDirector)
-            yield return player.chosenCard.ReplaceInstructions(player, logged + 1);
-        else
-            Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{player.chosenCard} can't be done by directors." , logged});
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
@@ -571,10 +481,10 @@ public class Card : MonoBehaviour
     void SetAllStats(int number)
     {
         float multiplier = (dataFile.numMisc > 0) ? dataFile.numMisc : -1 / dataFile.numMisc;
-        dataFile.numDraw = (int)Mathf.Floor(number * multiplier);
-        dataFile.numGain = (int)Mathf.Floor(number * multiplier);
+        dataFile.numCards = (int)Mathf.Floor(number * multiplier);
+        dataFile.numCoins = (int)Mathf.Floor(number * multiplier);
         dataFile.numCrowns = (int)Mathf.Floor(number * multiplier);
-        dataFile.numPlayCost = (int)Mathf.Floor(number * multiplier);
+        dataFile.numBatteries = (int)Mathf.Floor(number * multiplier);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 

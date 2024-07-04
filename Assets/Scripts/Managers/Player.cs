@@ -168,9 +168,6 @@ public class Player : MonoBehaviour
         SortHand();
         SortPlay();
 
-        if (Manager.instance.ActiveEvent("Recycling"))
-            GainCoin(1, logged);
-
         if (PhotonNetwork.IsConnected && discardMe.pv.AmOwner)
             StartCoroutine(DeleteJunk(discardMe.pv));
     }
@@ -337,8 +334,6 @@ public class Player : MonoBehaviour
 
             MultiFunction(nameof(LoseCoin), RpcTarget.All, new object[2] { cardToPlay.dataFile.coinCost, logged });
             yield return new WaitForSeconds(0.25f);
-            if (cardToDiscard != null)
-                yield return cardToDiscard.ReplaceInstructions(this, logged + 1);
             yield return cardToPlay.PlayInstructions(this, logged+1);
         }
         else
@@ -484,32 +479,9 @@ public class Player : MonoBehaviour
 
         if (!PhotonNetwork.IsConnected || this.pv.IsMine)
         {
-            //start of turn events
-            List<Card> startOfTurnEvents = Manager.instance.listOfEvents.Where
-                (card => (card.dataFile.textBox.StartsWith("START OF TURN")
-                && Manager.instance.ActiveEvent(card.dataFile.cardName))).ToList();
-            while (startOfTurnEvents.Count > 0)
-            {
-                Popup eventPopup = Instantiate(CarryVariables.instance.cardPopup);
-                eventPopup.StatsSetup("Choose an event to resolve.", Vector3.zero);
-                foreach (Card next in startOfTurnEvents)
-                    eventPopup.AddCardButton(next, 1);
-                yield return eventPopup.WaitForChoice();
-
-                Card eventToResolve = eventPopup.chosenCard;
-                Destroy(eventPopup.gameObject);
-                startOfTurnEvents.Remove(eventToResolve);
-                yield return eventToResolve.PlayInstructions(this, 0);
-            }
 
             //choosing actions
             Card actionToUse = null;
-            if (Manager.instance.ActiveEvent("Repairs"))
-            {
-                actionToUse = Manager.instance.listOfEvents.Find(card => card.dataFile.cardName == "Upgrade");
-            }
-            else
-            {
                 Popup actionPopup = Instantiate(CarryVariables.instance.cardPopup);
                 actionPopup.transform.SetParent(this.transform);
                 actionPopup.StatsSetup("Actions", Vector3.zero);
@@ -521,7 +493,6 @@ public class Player : MonoBehaviour
 
                 actionToUse = actionPopup.chosenCard;
                 Destroy(actionPopup.gameObject);
-            }
 
             Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} uses {actionToUse.name}.", 0 });
             yield return actionToUse.PlayInstructions(this, 0);
