@@ -22,7 +22,6 @@ public class CardData
     public int numCrowns;
     public int numBatteries;
     public int numMisc;
-    public string artCredit;
     public PlayerTarget[] whoToTarget;
 }
 
@@ -151,8 +150,6 @@ public class DownloadSheets : MonoBehaviour
             nextData.numCrowns = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numCrowns)]]);
             nextData.numBatteries = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numBatteries)]]);
             nextData.numMisc = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numMisc)]]);
-
-            nextData.artCredit = data[i][cardSheetsColumns[nameof(CardData.artCredit)]];
 
             string[] listOfTargets = (data[i][cardSheetsColumns[nameof(CardData.whoToTarget)]].Equals("") ? new string[1] { "None" } :
                 SpliceString(data[i][cardSheetsColumns[nameof(CardData.whoToTarget)]].Trim().ToUpper(), '-'));

@@ -12,20 +12,26 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
     [ReadOnly] public CanvasGroup cg;
     [SerializeField] Image background;
     TMP_Text titleText;
-    TMP_Text descriptionText;
-    TMP_Text artText;
+    TMP_Text batteryDisplay;
+    TMP_Text bigDescription;
+    TMP_Text smallDescription;
     TMP_Text coinText;
     TMP_Text crownText;
-    Image artBox;
 
     private void Awake()
     {
         cg = transform.Find("Canvas Group").GetComponent<CanvasGroup>();
         titleText = cg.transform.Find("Title").GetComponent<TMP_Text>();
-        descriptionText = cg.transform.Find("Description").GetComponent<TMP_Text>();
-        artBox = cg.transform.Find("Art Box").GetComponent<Image>();
-        artText = cg.transform.Find("Art Credit").GetComponent<TMP_Text>();
 
+        try
+        {
+            bigDescription = cg.transform.Find("Big Description").GetComponent<TMP_Text>();
+        }
+        catch
+        {
+            smallDescription = cg.transform.Find("Small Description").GetComponent<TMP_Text>();
+            batteryDisplay = cg.transform.Find("Battery Display").GetComponent<TMP_Text>();
+        }
         try
         {
             coinText = cg.transform.Find("Coin").GetComponent<TMP_Text>();
@@ -45,7 +51,7 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
         }
     }
 
-    public void FillInCards(CardData dataFile, Sprite sprite, Color color)
+    public void FillInCards(CardData dataFile, Color color)
     {
         this.dataFile = dataFile;
 
@@ -58,12 +64,16 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
             Debug.LogError($"{this.name} has no background");
         }
         titleText.text = dataFile.cardName;
-        descriptionText.text = dataFile.textBox;
-        descriptionText.text = KeywordTooltip.instance.EditText(descriptionText.text);
 
-        artText.text = dataFile.artCredit;
-        artBox.sprite = sprite;
-        artBox.color = Color.red;
+        if (dataFile.startingBatteries < 0)
+        {
+            bigDescription.text = KeywordTooltip.instance.EditText(dataFile.textBox);
+        }
+        else
+        {
+            smallDescription.text = KeywordTooltip.instance.EditText(dataFile.textBox);
+            batteryDisplay.text = KeywordTooltip.instance.EditText($"{dataFile.startingBatteries} Battery");
+        }
 
         if (coinText != null)
         {
@@ -96,6 +106,6 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
 
     void RightClickInfo()
     {
-        CarryVariables.instance.RightClickDisplay(cg.alpha, (artBox != null) ? artBox.sprite : null, this.dataFile, background.color);
+        CarryVariables.instance.RightClickDisplay(cg.alpha, this.dataFile, background.color);
     }
 }

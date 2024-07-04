@@ -9,7 +9,6 @@ using Photon.Pun;
 using TMPro;
 using System;
 
-[RequireComponent(typeof(PhotonView))]
 public class Card : MonoBehaviour
 {
 
@@ -23,7 +22,6 @@ public class Card : MonoBehaviour
     [Foldout("Art", true)]
         [ReadOnly] public CanvasGroup cg;
         public Image background;
-        [ReadOnly] public Sprite originalSprite;
         public Image border;
 
     [Foldout("Methods", true)]
@@ -77,7 +75,6 @@ public class Card : MonoBehaviour
         this.dataFile = DownloadSheets.instance.mainActionData[fileSlot];
         this.transform.SetParent(Manager.instance.actions);
         Manager.instance.listOfActions.Add(this);
-        this.originalSprite = Resources.Load<Sprite>($"Action/{this.dataFile.cardName}");
         OtherSetup();
     }
 
@@ -86,15 +83,13 @@ public class Card : MonoBehaviour
     {
         this.dataFile = DownloadSheets.instance.robotData[fileSlot];
         this.transform.SetParent(Manager.instance.deck);
-        this.originalSprite = Resources.Load<Sprite>($"Robot/{this.dataFile.cardName}");
         OtherSetup();
     }
 
     void OtherSetup()
     {
         this.name = dataFile.cardName;
-        this.gameObject.GetComponent<CardLayout>().FillInCards(this.dataFile, this.originalSprite, background.color);
-
+        this.gameObject.GetComponent<CardLayout>().FillInCards(this.dataFile, background.color);
         GetMethods(dataFile.playInstructions);
     }
 
@@ -185,7 +180,14 @@ public class Card : MonoBehaviour
 
     private void FixedUpdate()
     {
-        this.border.SetAlpha(Manager.instance.opacity);
+        try
+        {
+            this.border.SetAlpha(Manager.instance.opacity);
+        }
+        catch
+        {
+
+        }
     }
 
     #endregion
@@ -419,38 +421,6 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator LastUsedBrainstorm(Player player, int logged)
-    {
-        yield return null;
-        if (player.lastUsedAction == null || !player.lastUsedAction.name.Equals("Brainstorm"))
-            MultiFunction(nameof(StopInstructions), RpcTarget.All);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator LastUsedStockpile(Player player, int logged)
-    {
-        yield return null;
-        if (player.lastUsedAction == null || !player.lastUsedAction.name.Equals("Stockpile"))
-            MultiFunction(nameof(StopInstructions), RpcTarget.All);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator LastUsedUpgrade(Player player, int logged)
-    {
-        yield return null;
-        if (player.lastUsedAction == null || !player.lastUsedAction.name.Equals("Upgrade"))
-            MultiFunction(nameof(StopInstructions), RpcTarget.All);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator PlayedCardOrMore(Player player, int logged)
-    {
-        yield return null;
-        if (player.cardsPlayed.Count >= dataFile.numMisc)
-            MultiFunction(nameof(StopInstructions), RpcTarget.All);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
     IEnumerator ChosenCard(Player player, int logged)
     {
         yield return null;
@@ -510,13 +480,6 @@ public class Card : MonoBehaviour
     {
         yield return null;
         MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.coins });
-    }
-
-    IEnumerator SetChosenToLastPlay(Player player, int logged)
-    {
-        if (player.cardsPlayed[^1] != null)
-            yield return player.ChooseCard(new() { player.cardsPlayed[^1] }, false);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     #endregion

@@ -34,7 +34,6 @@ public class Player : MonoBehaviour
         [SerializeField] Transform cardhand;
         [ReadOnly] public List<Card> listOfPlay = new List<Card>();
         [SerializeField] Transform cardplay;
-        [ReadOnly] public List<Card> cardsPlayed = new();
         TMP_Text buttonText;
         Transform storePlayers;
         Button resignButton;
@@ -116,8 +115,6 @@ public class Player : MonoBehaviour
 
         if (!PhotonNetwork.IsConnected || pv.IsMine)
         {
-            CreateJunkRPC(true, -1);
-            CreateJunkRPC(true, -1);
             MoveScreen();
         }
     }
@@ -336,17 +333,12 @@ public class Player : MonoBehaviour
             yield return new WaitForSeconds(0.25f);
             yield return cardToPlay.PlayInstructions(this, logged+1);
         }
-        else
-        {
-            MultiFunction(nameof(FailToPlay), RpcTarget.All, new object[1] { logged });
-        }
     }
 
     void AddToPlayArea(Card card, int logged)
     {
         if (card == null)
         {
-            cardsPlayed.Add(null);
             Log.instance.AddText($"{this.name} doesn't play anything.", logged);
             SortHand();
             SortPlay();
@@ -356,7 +348,6 @@ public class Player : MonoBehaviour
             card.name = card.name.Replace("(Clone)", "");
             card.cg.alpha = 1;
 
-            cardsPlayed.Add(card);
             listOfHand.Remove(card);
             listOfPlay.Add(card);
             card.transform.SetParent(cardplay);
@@ -370,36 +361,9 @@ public class Player : MonoBehaviour
     }
 
     [PunRPC]
-    void FailToPlay(int logged)
-    {
-        AddToPlayArea(null, logged);
-    }
-
-    [PunRPC]
     void PhotonViewToPlay(int cardID, int logged)
     {
         AddToPlayArea(PhotonView.Find(cardID).GetComponent<Card>(), logged);
-    }
-
-    [PunRPC]
-    public Card CreateJunkRPC(bool addToPlay, int logged)
-    {
-        Card newJunk = null;
-
-        if (PhotonNetwork.IsConnected)
-        {
-            newJunk = PhotonNetwork.Instantiate(junkPrefab.name, Vector3.zero, new Quaternion()).GetComponent<Card>();
-            if (addToPlay)
-                pv.RPC(nameof(PhotonViewToPlay), RpcTarget.All, newJunk.pv.ViewID, logged);
-        }
-        else
-        {
-            newJunk = Instantiate(junkPrefab);
-            if (addToPlay)
-                AddToPlayArea(newJunk, logged);
-        }
-
-        return newJunk;
     }
 
     #endregion
@@ -475,11 +439,10 @@ public class Player : MonoBehaviour
         Log.instance.AddText($"");
         Log.instance.AddText($"Turn {turnNumber} - {this.name}");
         Manager.instance.instructions.text = $"Waiting for {this.name}";
-        cardsPlayed.Clear();
+        yield return null;
 
         if (!PhotonNetwork.IsConnected || this.pv.IsMine)
         {
-
             //choosing actions
             Card actionToUse = null;
                 Popup actionPopup = Instantiate(CarryVariables.instance.cardPopup);
@@ -497,13 +460,6 @@ public class Player : MonoBehaviour
             Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} uses {actionToUse.name}.", 0 });
             yield return actionToUse.PlayInstructions(this, 0);
 
-            //playing new card
-            int currentCards = cardsPlayed.Count;
-            Manager.instance.instructions.text = "Play a new card (or add a Junk).";
-            yield return ChooseCardToPlay(listOfHand.Where(card => card.dataFile.coinCost <= coins).ToList(), new(), 0);
-            if (currentCards == cardsPlayed.Count)
-                CreateJunkRPC(true, 0);
-
             MultiFunction(nameof(EndTurn), RpcTarget.All, new object[1] { Manager.instance.listOfActions.FindIndex(action => action == actionToUse) });
         }
     }
@@ -513,7 +469,6 @@ public class Player : MonoBehaviour
     {
         lastUsedAction = Manager.instance.listOfActions[chosenAction];
         myTurn = false;
-        cardsPlayed.Clear();
         ignoreInstructions = Mathf.Max(0, ignoreInstructions - 1);
     }
 
