@@ -11,8 +11,7 @@
       "numCoins",
       "numCrowns",
       "numBatteries",
-      "numMisc",
-      "artCredit"
+      "numMisc"
     ],
     [
       "Brainstorm",
@@ -26,8 +25,7 @@
       "",
       "",
       "",
-      "",
-      "\"\""
+      "0"
     ],
     [
       "Stockpile",
@@ -41,38 +39,35 @@
       "4",
       "",
       "",
-      "",
-      "\"\""
+      "0"
     ],
     [
-      "Upgrade",
+      "Recharge",
       "Add 2 Battery.",
       "",
       "",
       "",
       "You",
-      "ReplaceCardOrMore",
+      "AddBatteryToOther",
       "",
       "",
       "",
-      "0",
-      "",
-      "\"\""
+      "2",
+      "0"
     ],
     [
-      "Build",
+      "Construct",
       "Play 1 Card.",
       "",
       "",
       "",
       "You",
-      "ReplaceCardOrMore",
+      "PlayCard",
       "",
       "",
       "",
-      "0",
       "",
-      "\"\""
+      "0"
     ]
   ]
 }

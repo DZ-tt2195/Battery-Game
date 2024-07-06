@@ -18,11 +18,13 @@ public class Card : MonoBehaviour
         [ReadOnly] public PhotonView pv;
         public CardData dataFile;
         [ReadOnly] public Button button;
+        [ReadOnly] public int batteries { get; private set; }
 
-    [Foldout("Art", true)]
+    [Foldout("UI", true)]
         [ReadOnly] public CanvasGroup cg;
         public Image background;
         public Image border;
+        [SerializeField] TMP_Text batteryDisplay;
 
     [Foldout("Methods", true)]
         public Dictionary<string, MethodInfo> dictionary = new();
@@ -40,7 +42,7 @@ public class Card : MonoBehaviour
         cg = transform.Find("Canvas Group").GetComponent<CanvasGroup>();
     }
 
-    void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
+    public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
     {
         if (!dictionary.ContainsKey(methodName))
             AddToDictionary(methodName);
@@ -51,7 +53,7 @@ public class Card : MonoBehaviour
             dictionary[methodName].Invoke(this, parameters);
     }
 
-    IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
+    public IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
     {
         if (!dictionary.ContainsKey(methodName))
             AddToDictionary(methodName);
@@ -191,6 +193,32 @@ public class Card : MonoBehaviour
     }
 
     #endregion
+
+#region Batteries
+
+    [PunRPC]
+    public void AddBatteries(int playerPosition, int batteries, int logged)
+    {
+        this.batteries += batteries;
+        UpdateBatteryText();
+        Log.instance.AddText($"{Manager.instance.playersInOrder[playerPosition].name} adds {batteries} Battery to {this.name}.", logged);
+    }
+
+    [PunRPC]
+    public void RemoveBatteries(int playerPosition, int batteries, int logged)
+    {
+        this.batteries = Mathf.Max(0, this.batteries-batteries);
+        UpdateBatteryText();
+        Log.instance.AddText($"{Manager.instance.playersInOrder[playerPosition].name} removes {batteries} Battery from {this.name}.", logged);
+    }
+
+    void UpdateBatteryText()
+    {
+        batteryDisplay.text = KeywordTooltip.instance.EditText($"{batteries} Battery");
+        batteryDisplay.transform.parent.gameObject.SetActive(batteries > 0);
+    }
+
+#endregion
 
 #region Follow Instructions
 
@@ -345,30 +373,44 @@ public class Card : MonoBehaviour
 
     IEnumerator MandatoryDiscard(Player player, int logged)
     {
-        for (int i = 0; i<dataFile.numCards; i++)
+        if (player.listOfHand.Count <= dataFile.numCards)
         {
-            Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards-i} more).";
-            yield return player.ChooseCard(player.listOfHand, false);
-            player.DiscardRPC(player.chosenCard, logged);
+            yield return DiscardHand(player, logged);
+        }
+        else
+        {
+            for (int i = 0; i < dataFile.numCards; i++)
+            {
+                Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards - i} more).";
+                yield return player.ChooseCard(player.listOfHand, false);
+                player.DiscardRPC(player.chosenCard, logged);
+            }
         }
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator OptionalDiscard(Player player, int logged)
     {
-        for (int i = 0; i < dataFile.numCards; i++)
+        if (player.listOfHand.Count < dataFile.numCards)
         {
-            Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards - i} more)?";
-            yield return player.ChooseCard(player.listOfHand, i == 0);
+            MultiFunction(nameof(StopInstructions), RpcTarget.All);
+        }
+        else
+        {
+            for (int i = 0; i < dataFile.numCards; i++)
+            {
+                Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards - i} more)?";
+                yield return player.ChooseCard(player.listOfHand, i == 0);
 
-            if (player.chosenCard == null)
-            {
-                MultiFunction(nameof(StopInstructions), RpcTarget.All);
-                break;
-            }
-            else
-            {
-                player.DiscardRPC(player.chosenCard, logged);
+                if (player.chosenCard == null)
+                {
+                    MultiFunction(nameof(StopInstructions), RpcTarget.All);
+                    break;
+                }
+                else
+                {
+                    player.DiscardRPC(player.chosenCard, logged);
+                }
             }
         }
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
@@ -390,6 +432,44 @@ public class Card : MonoBehaviour
     {
         yield return null;
         player.MultiFunction(nameof(player.IgnoreUntilTurn), RpcTarget.All, new object[1] { dataFile.numMisc });
+        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+    }
+
+    IEnumerator AddBatteryToOther(Player player, int logged)
+    {
+        for (int i = 0; i < dataFile.numBatteries; i++)
+        {
+            Manager.instance.instructions.text = $"Add batteries to your robots ({dataFile.numBatteries-i} more)";
+            yield return player.ChooseCard(player.listOfPlay.Where(card => card != this).ToList(), false);
+            if (player.chosenCard != null)
+                player.chosenCard.MultiFunction(nameof(AddBatteries), RpcTarget.All, new object[3] {player.playerPosition, 1, logged});
+        }
+        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+    }
+
+    IEnumerator MoveBattery(Player player, int logged)
+    {
+        if (player.listOfPlay.Count >= 2)
+        {
+            Manager.instance.instructions.text = $"Remove 1 battery from a robot in play.";
+            yield return player.ChooseCard(player.listOfPlay.Where(card => card.batteries > 0).ToList(), false);
+            Card firstCard = player.chosenCard;
+            if (firstCard != null)
+            {
+                firstCard.MultiFunction(nameof(RemoveBatteries), RpcTarget.All, new object[3] { player.playerPosition, 1, logged });
+
+                Manager.instance.instructions.text = $"Add 1 battery to a robot in play.";
+                yield return player.ChooseCard(player.listOfPlay.Where(card => card != this).ToList(), false);
+                if (player.chosenCard != null)
+                    player.chosenCard.MultiFunction(nameof(AddBatteries), RpcTarget.All, new object[3] { player.playerPosition, 1, logged });
+            }
+        }
+        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+    }
+
+    IEnumerator PlayCard(Player player, int logged)
+    {
+        yield return player.ChooseCardToPlay(player.listOfHand.Where(card => card.dataFile.coinCost <= player.coins).ToList(), logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 

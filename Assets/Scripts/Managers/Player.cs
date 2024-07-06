@@ -304,7 +304,7 @@ public class Player : MonoBehaviour
             StartCoroutine(card.RevealCard(0.25f));
     }
 
-    public IEnumerator ChooseCardToPlay(List<Card> cardsToPlay, List<Card> cardsToReplace, int logged)
+    public IEnumerator ChooseCardToPlay(List<Card> cardsToPlay, int logged)
     {
         if (cardsToPlay.Count == 0)
             yield break;
@@ -315,23 +315,13 @@ public class Player : MonoBehaviour
         if (chosenCard != null)
         {
             Card cardToPlay = chosenCard;
-            Card cardToDiscard = null;
-            if (cardsToReplace.Count > 0)
-            {
-                Manager.instance.instructions.text = "Choose a card to replace.";
-                yield return ChooseCard(cardsToReplace, false);
-                cardToDiscard = chosenCard;
-                DiscardRPC(cardToDiscard, logged);
-            }
 
             if (PhotonNetwork.IsConnected)
                 pv.RPC(nameof(PhotonViewToPlay), RpcTarget.All, cardToPlay.pv.ViewID, logged);
             else
                 AddToPlayArea(cardToPlay, logged);
 
-            MultiFunction(nameof(LoseCoin), RpcTarget.All, new object[2] { cardToPlay.dataFile.coinCost, logged });
-            yield return new WaitForSeconds(0.25f);
-            yield return cardToPlay.PlayInstructions(this, logged+1);
+            cardToPlay.MultiFunction(nameof(cardToPlay.AddBatteries), RpcTarget.All, new object[2] { cardToPlay.dataFile.startingBatteries, logged });
         }
     }
 

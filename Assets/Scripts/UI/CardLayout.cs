@@ -12,9 +12,7 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
     [ReadOnly] public CanvasGroup cg;
     [SerializeField] Image background;
     TMP_Text titleText;
-    TMP_Text batteryDisplay;
-    TMP_Text bigDescription;
-    TMP_Text smallDescription;
+    TMP_Text description;
     TMP_Text coinText;
     TMP_Text crownText;
 
@@ -22,16 +20,8 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
     {
         cg = transform.Find("Canvas Group").GetComponent<CanvasGroup>();
         titleText = cg.transform.Find("Title").GetComponent<TMP_Text>();
+        description = cg.transform.Find("Description").GetComponent<TMP_Text>();
 
-        try
-        {
-            bigDescription = cg.transform.Find("Big Description").GetComponent<TMP_Text>();
-        }
-        catch
-        {
-            smallDescription = cg.transform.Find("Small Description").GetComponent<TMP_Text>();
-            batteryDisplay = cg.transform.Find("Battery Display").GetComponent<TMP_Text>();
-        }
         try
         {
             coinText = cg.transform.Find("Coin").GetComponent<TMP_Text>();
@@ -67,12 +57,11 @@ public class CardLayout : MonoBehaviour, IPointerClickHandler
 
         if (dataFile.startingBatteries < 0)
         {
-            bigDescription.text = KeywordTooltip.instance.EditText(dataFile.textBox);
+            description.text = KeywordTooltip.instance.EditText(dataFile.textBox);
         }
         else
         {
-            smallDescription.text = KeywordTooltip.instance.EditText(dataFile.textBox);
-            batteryDisplay.text = KeywordTooltip.instance.EditText($"{dataFile.startingBatteries} Battery");
+            description.text = KeywordTooltip.instance.EditText($"{dataFile.startingBatteries} Battery\n\n{dataFile.textBox}");
         }
 
         if (coinText != null)

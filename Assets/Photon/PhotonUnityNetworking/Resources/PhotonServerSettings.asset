@@ -63,6 +63,8 @@ MonoBehaviour:
   - TakeTurn
   - UpdateButton
   - UpdateTurnNumber
+  - AddBatteries
+  - RemoveBatteries
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0
