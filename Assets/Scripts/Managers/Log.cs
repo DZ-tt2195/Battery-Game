@@ -7,18 +7,70 @@ using MyBox;
 using System.Text.RegularExpressions;
 using Photon.Pun;
 using System.Reflection;
+using System;
+
+[Serializable]
+public class UndoProcess
+{
+    public Player canAskUndo;
+    public List<UndoStep> listOfSteps = new();
+    public int addedLogLines = 0;
+
+    public UndoProcess(int playerPosition)
+    {
+        this.canAskUndo = Manager.instance.playersInOrder[playerPosition];
+    }
+}
+
+[Serializable]
+public class UndoStep
+{
+    public UndoSource source;
+    public Player user;
+    public string instruction;
+    public List<GameObject> objectsToRemember = new();
+    public int numberToRemember;
+
+    public UndoStep(int playerPosition, int sourceID, string instruction)
+    {
+        this.user = Manager.instance.playersInOrder[playerPosition];
+        this.source = PhotonView.Find(sourceID).GetComponent<UndoSource>();
+        this.instruction = instruction;
+    }
+
+    public UndoStep(Player user, UndoSource source, string instruction)
+    {
+        this.user = user;
+        this.source = source;
+        this.instruction = instruction;
+    }
+}
 
 [RequireComponent(typeof(PhotonView))]
 public class Log : MonoBehaviour
-{    
+{
+
+#region Variables
+
     public static Log instance;
-    Scrollbar scroll;
-    [SerializeField] RectTransform RT;
-    GridLayoutGroup gridGroup;
-    float startingHeight;
-    [SerializeField] TMP_Text textBoxClone;
     [ReadOnly] public PhotonView pv;
-    public Dictionary<string, MethodInfo> dictionary = new();
+
+    [Foldout("Log", true)]
+        Scrollbar scroll;
+        [SerializeField] RectTransform RT;
+        GridLayoutGroup gridGroup;
+        float startingHeight;
+        [SerializeField] LogText textBoxClone;
+        public Dictionary<string, MethodInfo> dictionary = new();
+
+    [Foldout("Undo", true)]
+        List<UndoProcess> historyStack = new();
+        List<Button> undosInLog = new();
+        bool nextUndoBar = false;
+
+    #endregion
+
+#region Setup
 
     private void Awake()
     {
@@ -58,25 +110,10 @@ public class Log : MonoBehaviour
             dictionary.Add(methodName, method);
     }
 
-    /*
-    void Update()
-    {
-        #if UNITY_EDITOR
-            if (Input.GetKeyDown(KeyCode.Space))
-                AddText($"Test {RT.transform.childCount+1}");
-        #endif
-    }
-    */
+    #endregion
 
-    /*
-    public static string Substitute(Ability ability, Character user, Character target)
-    {
-        string sentence = ability.data.logDescription;
-        sentence = sentence.Replace("THIS", user.data.myName);
-        try{ sentence = sentence.Replace("TARGET", target.data.myName);} catch{do nothing}
-        return sentence;
-    }
-    */
+#region Add To Log
+
     public static string Article(string followingWord)
     {
         if (followingWord.StartsWith('A')
@@ -100,13 +137,21 @@ public class Log : MonoBehaviour
         if (indent < 0)
             return;
 
-        TMP_Text newText = Instantiate(textBoxClone, RT.transform);
-        newText.text = "";
-        for (int i = 0; i < indent; i++)
-            newText.text += "     ";
-        newText.text += string.IsNullOrEmpty(logText) ? "" : char.ToUpper(logText[0]) + logText[1..];
+        if (historyStack.Count > 0)
+            historyStack[^1].addedLogLines++;
 
-        newText.text = KeywordTooltip.instance.EditText(newText.text);
+        LogText newText = Instantiate(textBoxClone, RT.transform);
+        newText.textBox.text = "";
+        for (int i = 0; i < indent; i++)
+            newText.textBox.text += "     ";
+        newText.textBox.text += string.IsNullOrEmpty(logText) ? "" : char.ToUpper(logText[0]) + logText[1..];
+
+        newText.textBox.text = KeywordTooltip.instance.EditText(newText.textBox.text);
+        if (nextUndoBar)
+        {
+            nextUndoBar = false;
+            undosInLog.Insert(0, newText.GetComponent<Button>());
+        }
 
         if (RT.transform.childCount >= (startingHeight / gridGroup.cellSize.y)-1)
         {
@@ -119,4 +164,77 @@ public class Log : MonoBehaviour
             }
         }
     }
+
+    #endregion
+
+#region Undos
+
+    void DisplayUndoBar(bool on)
+    {
+        undosInLog.RemoveAll(item => item == null);
+        for (int i = 0; i < undosInLog.Count; i++)
+        {
+            Button nextButton = undosInLog[i];
+            nextButton.onClick.RemoveAllListeners();
+            nextButton.interactable = on;
+            nextButton.transform.GetChild(0).gameObject.SetActive(on);
+
+            if (on)
+            {
+                int number = i;
+                nextButton.onClick.AddListener(() => MultiFunction(nameof(Undo), RpcTarget.All, new object[1] { number }));
+            }
+        }
+
+        //undoButton.onClick.RemoveAllListeners();
+        //undoButton.onClick.AddListener(() => DisplayUndoBar(!on));
+    }
+
+    [PunRPC]
+    public void AddUndoPoint(UndoProcess process)
+    {
+        historyStack.Add(process);
+        instance.nextUndoBar = true;
+    }
+
+    [PunRPC]
+    public UndoStep AddUndoStep(Player user, UndoSource source, string instruction)
+    {
+        UndoProcess currentProcess = historyStack[^1];
+        if (currentProcess.listOfSteps.Count == 0 || currentProcess.listOfSteps[0].instruction != "")
+        {
+            currentProcess.listOfSteps.Insert(0, new(user, source, instruction));
+        }
+        else
+        {
+            currentProcess.listOfSteps[0] = new(user, source, instruction);
+        }
+        return currentProcess.listOfSteps[0];
+    }
+
+    [PunRPC]
+    void Undo(int amount)
+    {
+        DisplayUndoBar(false);
+        int linesToDelete = 0;
+        int currentStackCount = historyStack.Count - 1;
+
+        for (int i = 0; i <= amount; i++)
+        {
+            UndoProcess process = historyStack[currentStackCount - i];
+            historyStack.RemoveAt(currentStackCount - i);
+            linesToDelete += process.addedLogLines;
+
+            foreach (UndoStep step in process.listOfSteps)
+                StartCoroutine(step.source.UndoCommand(step));
+        }
+
+        for (int i = 1; i <= linesToDelete; i++)
+        {
+            Destroy(RT.transform.GetChild(RT.transform.childCount - i).gameObject);
+        }
+    }
+
+    #endregion
+
 }

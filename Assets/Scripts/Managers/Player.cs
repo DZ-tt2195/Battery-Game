@@ -12,7 +12,7 @@ using MyBox;
 using System.Reflection;
 
 [RequireComponent(typeof(PhotonView))]
-public class Player : MonoBehaviour
+public class Player : UndoSource
 {
 
 #region Variables
@@ -39,13 +39,12 @@ public class Player : MonoBehaviour
         Button resignButton;
 
     [Foldout("Choices", true)]
-        public Dictionary<string, MethodInfo> dictionary = new();
         [ReadOnly] public int choice;
         [ReadOnly] public Card chosenCard;
         [ReadOnly] public Card lastUsedAction;
         [ReadOnly] public int ignoreInstructions = 0;
 
-#endregion
+    #endregion
 
 #region Setup
 
@@ -72,31 +71,31 @@ public class Player : MonoBehaviour
 
     public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
     {
-        if (!dictionary.ContainsKey(methodName))
-            AddToDictionary(methodName);
+        if (!methodDictionary.ContainsKey(methodName))
+            AddToMethodDictionary(methodName);
 
         if (PhotonNetwork.IsConnected)
-            pv.RPC(dictionary[methodName].Name, affects, parameters);
+            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
         else
-            dictionary[methodName].Invoke(this, parameters);
+            methodDictionary[methodName].Invoke(this, parameters);
     }
 
     public IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
     {
-        if (!dictionary.ContainsKey(methodName))
-            AddToDictionary(methodName);
+        if (!methodDictionary.ContainsKey(methodName))
+            AddToMethodDictionary(methodName);
 
         if (PhotonNetwork.IsConnected)
-            pv.RPC(dictionary[methodName].Name, affects, parameters);
+            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
         else
-            yield return (IEnumerator)dictionary[methodName].Invoke(this, parameters);
+            yield return (IEnumerator)methodDictionary[methodName].Invoke(this, parameters);
     }
 
-    void AddToDictionary(string methodName)
+    protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Player).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
-            dictionary.Add(methodName, method);
+            methodDictionary.Add(methodName, method);
     }
 
     internal void AssignInfo(int position)
@@ -132,6 +131,14 @@ public class Player : MonoBehaviour
     void MoveScreen()
     {
         storePlayers.localPosition = new Vector3(-2500 * this.playerPosition, 0, 0);
+    }
+
+    public override IEnumerator UndoCommand(UndoStep step)
+    {
+        if (!methodDictionary.ContainsKey(step.instruction))
+            AddToMethodDictionary(step.instruction);
+
+        yield return ((IEnumerator)methodDictionary[step.instruction].Invoke(this, new object[2] { step, true }));
     }
 
     #endregion
@@ -321,7 +328,7 @@ public class Player : MonoBehaviour
             else
                 AddToPlayArea(cardToPlay, logged);
 
-            cardToPlay.MultiFunction(nameof(cardToPlay.AddBatteries), RpcTarget.All, new object[2] { cardToPlay.dataFile.startingBatteries, logged });
+            cardToPlay.MultiFunction(nameof(cardToPlay.AddBatteries), RpcTarget.All, new object[3] { this.playerPosition, cardToPlay.dataFile.startingBatteries, logged });
         }
     }
 
@@ -450,8 +457,29 @@ public class Player : MonoBehaviour
             Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} uses {actionToUse.name}.", 0 });
             yield return actionToUse.PlayInstructions(this, 0);
 
+            yield return ResolveRobots();
+
             MultiFunction(nameof(EndTurn), RpcTarget.All, new object[1] { Manager.instance.listOfActions.FindIndex(action => action == actionToUse) });
         }
+    }
+
+    IEnumerator ResolveRobots()
+    {
+        List<Card> resolvedRobots = new();
+        List<Card> availableRobots = new();
+        do
+        {
+            availableRobots = listOfPlay.Where(robot => robot.batteries > 0 && !resolvedRobots.Contains(robot)).ToList();
+            yield return ChooseCard(availableRobots, false);
+
+            if (chosenCard != null)
+            {
+                resolvedRobots.Add(chosenCard);
+                chosenCard.MultiFunction(nameof(chosenCard.RemoveBatteries), RpcTarget.All, new object[3] { this.playerPosition, 1, 0 });
+                yield return chosenCard.PlayInstructions(this, 1);
+            }
+
+        } while (availableRobots.Count > 0);
     }
 
     [PunRPC]

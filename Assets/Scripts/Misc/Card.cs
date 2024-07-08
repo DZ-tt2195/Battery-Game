@@ -9,7 +9,7 @@ using Photon.Pun;
 using TMPro;
 using System;
 
-public class Card : MonoBehaviour
+public class Card : UndoSource
 {
 
 #region Variables
@@ -27,7 +27,6 @@ public class Card : MonoBehaviour
         [SerializeField] TMP_Text batteryDisplay;
 
     [Foldout("Methods", true)]
-        public Dictionary<string, MethodInfo> dictionary = new();
         protected bool runNextMethod;
         protected bool runningMethod;
 
@@ -44,31 +43,31 @@ public class Card : MonoBehaviour
 
     public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
     {
-        if (!dictionary.ContainsKey(methodName))
-            AddToDictionary(methodName);
+        if (!methodDictionary.ContainsKey(methodName))
+            AddToMethodDictionary(methodName);
 
         if (PhotonNetwork.IsConnected)
-            pv.RPC(dictionary[methodName].Name, affects, parameters);
+            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
         else
-            dictionary[methodName].Invoke(this, parameters);
+            methodDictionary[methodName].Invoke(this, parameters);
     }
 
     public IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
     {
-        if (!dictionary.ContainsKey(methodName))
-            AddToDictionary(methodName);
+        if (!methodDictionary.ContainsKey(methodName))
+            AddToMethodDictionary(methodName);
 
         if (PhotonNetwork.IsConnected)
-            pv.RPC(dictionary[methodName].Name, affects, parameters);
+            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
         else
-            yield return (IEnumerator)dictionary[methodName].Invoke(this, parameters);
+            yield return (IEnumerator)methodDictionary[methodName].Invoke(this, parameters);
     }
 
-    void AddToDictionary(string methodName)
+    protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Card).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
-            dictionary.Add(methodName, method);
+            methodDictionary.Add(methodName, method);
     }
 
     [PunRPC]
@@ -102,7 +101,7 @@ public class Card : MonoBehaviour
             string[] nextSplit = DownloadSheets.instance.SpliceString(nextSection.Trim(), '/');
             foreach (string methodName in nextSplit)
             {
-                if (methodName.Equals("None") || methodName.Equals("") || dictionary.ContainsKey(methodName))
+                if (methodName.Equals("None") || methodName.Equals("") || methodDictionary.ContainsKey(methodName))
                 {
                 }
 
@@ -119,7 +118,7 @@ public class Card : MonoBehaviour
                 {
                     MethodInfo method = typeof(Card).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
                     if (method != null && method.ReturnType == typeof(IEnumerator))
-                        dictionary.Add(methodName, method);
+                        methodDictionary.Add(methodName, method);
                     else
                         Debug.LogError($"{dataFile.cardName}: instructions: {methodName} doesn't exist");
                 }
@@ -225,9 +224,17 @@ public class Card : MonoBehaviour
     public IEnumerator PlayInstructions(Player player, int logged)
     {
         if (player.ignoreInstructions == 0 || Manager.instance.listOfActions.Contains(this))
-            yield return ResolveInstructions(dataFile.playInstructions, player, logged);
+            yield return ResolveInstructions(dataFile.playInstructions, player, logged, false);
         else
             Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} ignores {this.name}'s instructions.", logged });
+    }
+
+    public override IEnumerator UndoCommand(UndoStep step)
+    {
+        if (!methodDictionary.ContainsKey(step.instruction))
+            AddToMethodDictionary(step.instruction);
+
+        yield return ((IEnumerator)methodDictionary[step.instruction].Invoke(this, new object[3] { step, true, true }));
     }
 
     [PunRPC]
@@ -242,7 +249,7 @@ public class Card : MonoBehaviour
         runningMethod = false;
     }
 
-    IEnumerator ResolveInstructions(string[] listOfInstructions, Player player, int logged)
+    IEnumerator ResolveInstructions(string[] listOfInstructions, Player player, int logged, bool undo)
     {
         runNextMethod = true;
         for (int i = 0; i < listOfInstructions.Count(); i++)
@@ -253,7 +260,7 @@ public class Card : MonoBehaviour
             if (dataFile.whoToTarget[i] == PlayerTarget.You)
             {
                 foreach (string methodName in listOfSmallInstructions)
-                    yield return RunStep(methodName, player, logged);
+                    yield return RunStep(methodName, player, logged, undo);
             }
             else
             {
@@ -267,7 +274,7 @@ public class Card : MonoBehaviour
                         continue;
 
                     foreach (string methodName in listOfSmallInstructions)
-                        yield return RunStep(methodName, nextPlayer, logged);
+                        yield return RunStep(methodName, nextPlayer, logged, undo);
 
                     playerTracker = (playerTracker == Manager.instance.playersInOrder.Count - 1) ? 0 : playerTracker + 1;
                 }
@@ -275,7 +282,7 @@ public class Card : MonoBehaviour
         }
     }
 
-    IEnumerator RunStep(string methodName, Player player, int logged)
+    IEnumerator RunStep(string methodName, Player player, int logged, bool undo)
     {
         runningMethod = true;
         if (methodName.Equals("None"))
@@ -312,11 +319,11 @@ public class Card : MonoBehaviour
             yield return popup.WaitForChoice();
             string chosenMethod = choices[popup.chosenButton];
             Destroy(popup.gameObject);
-            yield return RunStep(chosenMethod, player, logged);
+            yield return RunStep(chosenMethod, player, logged, undo);
         }
         else
         {
-            StartCoroutine((IEnumerator)dictionary[methodName].Invoke(this, new object[2] { player, logged }));
+            StartCoroutine((IEnumerator)methodDictionary[methodName].Invoke(this, new object[3] { player, logged, undo }));
 
             while (runningMethod)
                 yield return null;
@@ -328,42 +335,42 @@ public class Card : MonoBehaviour
 
 #region Steps
 
-    IEnumerator DrawCards(Player player, int logged)
+    IEnumerator DrawCards(Player player, int logged, bool undo)
     {
         yield return null;
         player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[2] {dataFile.numCards, logged});
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator GainCoins(Player player, int logged)
+    IEnumerator GainCoins(Player player, int logged, bool undo)
     {
         yield return null;
         player.MultiFunction(nameof(player.GainCoin), RpcTarget.All, new object[2] { dataFile.numCoins, logged });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator LoseCoins(Player player, int logged)
+    IEnumerator LoseCoins(Player player, int logged, bool undo)
     {
         yield return null;
         player.MultiFunction(nameof(player.LoseCoin), RpcTarget.All, new object[2] { dataFile.numCoins, logged });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator TakeNeg(Player player, int logged)
+    IEnumerator TakeNeg(Player player, int logged, bool undo)
     {
         yield return null;
         player.MultiFunction(nameof(player.TakeNegCrown), RpcTarget.All, new object[2] { dataFile.numCrowns, logged });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator RemoveNeg(Player player, int logged)
+    IEnumerator RemoveNeg(Player player, int logged, bool undo)
     {
         yield return null;
         player.MultiFunction(nameof(player.RemoveNegCrown), RpcTarget.All, new object[2] { dataFile.numCrowns, logged });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator DiscardHand(Player player, int logged)
+    IEnumerator DiscardHand(Player player, int logged, bool undo)
     {
         yield return null;
         foreach (Card card in player.listOfHand)
@@ -371,11 +378,11 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator MandatoryDiscard(Player player, int logged)
+    IEnumerator MandatoryDiscard(Player player, int logged, bool undo)
     {
         if (player.listOfHand.Count <= dataFile.numCards)
         {
-            yield return DiscardHand(player, logged);
+            yield return DiscardHand(player, logged, undo);
         }
         else
         {
@@ -389,7 +396,7 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator OptionalDiscard(Player player, int logged)
+    IEnumerator OptionalDiscard(Player player, int logged, bool undo)
     {
         if (player.listOfHand.Count < dataFile.numCards)
         {
@@ -416,26 +423,26 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator ChooseFromPlay(Player player, int logged)
+    IEnumerator ChooseFromPlay(Player player, int logged, bool undo)
     {
         yield return player.ChooseCard(player.listOfPlay, false);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator ChooseFromHand(Player player, int logged)
+    IEnumerator ChooseFromHand(Player player, int logged, bool undo)
     {
         yield return player.ChooseCard(player.listOfHand, false);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator IgnoreUntilTurn(Player player, int logged)
+    IEnumerator IgnoreUntilTurn(Player player, int logged, bool undo)
     {
         yield return null;
         player.MultiFunction(nameof(player.IgnoreUntilTurn), RpcTarget.All, new object[1] { dataFile.numMisc });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator AddBatteryToOther(Player player, int logged)
+    IEnumerator AddBatteryToOther(Player player, int logged, bool undo)
     {
         for (int i = 0; i < dataFile.numBatteries; i++)
         {
@@ -447,7 +454,7 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator MoveBattery(Player player, int logged)
+    IEnumerator MoveBattery(Player player, int logged, bool undo)
     {
         if (player.listOfPlay.Count >= 2)
         {
@@ -467,7 +474,7 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator PlayCard(Player player, int logged)
+    IEnumerator PlayCard(Player player, int logged, bool undo)
     {
         yield return player.ChooseCardToPlay(player.listOfHand.Where(card => card.dataFile.coinCost <= player.coins).ToList(), logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
@@ -477,7 +484,7 @@ public class Card : MonoBehaviour
 
 #region Booleans
 
-    IEnumerator HandOrMore(Player player, int logged)
+    IEnumerator HandOrMore(Player player, int logged, bool undo)
     {
         yield return null;
         if (!(player.listOfHand.Count <= dataFile.numMisc))
@@ -485,7 +492,7 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator MoneyOrLess(Player player, int logged)
+    IEnumerator MoneyOrLess(Player player, int logged, bool undo)
     {
         yield return null;
         if (!(player.coins <= dataFile.numMisc))
@@ -493,7 +500,7 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator MoneyOrMore(Player player, int logged)
+    IEnumerator MoneyOrMore(Player player, int logged, bool undo)
     {
         yield return null;
         if (!(player.coins >= dataFile.numMisc))
@@ -501,7 +508,7 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator ChosenCard(Player player, int logged)
+    IEnumerator ChosenCard(Player player, int logged, bool undo)
     {
         yield return null;
         if (player.chosenCard == null)
@@ -509,7 +516,7 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator YesOrNo(Player player, int logged)
+    IEnumerator YesOrNo(Player player, int logged, bool undo)
     {
         Popup popup = Instantiate(CarryVariables.instance.textPopup);
         popup.transform.SetParent(GameObject.Find("Canvas").transform);
@@ -528,7 +535,7 @@ public class Card : MonoBehaviour
 #region Setters
 
     [PunRPC]
-    void SetAllStats(int number)
+    void SetAllStats(int number, bool undo)
     {
         float multiplier = (dataFile.numMisc > 0) ? dataFile.numMisc : -1 / dataFile.numMisc;
         dataFile.numCards = (int)Mathf.Floor(number * multiplier);
@@ -538,25 +545,19 @@ public class Card : MonoBehaviour
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator SetToHandSize(Player player, int logged)
+    IEnumerator SetToHandSize(Player player, int logged, bool undo)
     {
         yield return null;
         MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.listOfHand.Count });
     }
 
-    IEnumerator SetToJunk(Player player, int logged)
-    {
-        yield return null;
-        MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.listOfPlay.Where(card => card.name == "Junk").ToList().Count });
-    }
-
-    IEnumerator SetToNegCrowns(Player player, int logged)
+    IEnumerator SetToNegCrowns(Player player, int logged, bool undo)
     {
         yield return null;
         MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.negCrowns });
     }
 
-    IEnumerator SetToCoins(Player player, int logged)
+    IEnumerator SetToCoins(Player player, int logged, bool undo)
     {
         yield return null;
         MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.coins });

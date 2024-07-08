@@ -1018,9 +1018,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6611be62a6dd24b928d234b199f4e4e2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  RT: {fileID: 203774334}
-  textBoxClone: {fileID: 8879651641130450831, guid: 6d5978b73c3d4470cbd36af5d370f5c0, type: 3}
   pv: {fileID: 0}
+  RT: {fileID: 203774334}
+  textBoxClone: {fileID: 7738356498783235254, guid: 6d5978b73c3d4470cbd36af5d370f5c0, type: 3}
 --- !u!114 &675451495
 MonoBehaviour:
   m_ObjectHideFlags: 0
