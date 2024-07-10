@@ -15,7 +15,6 @@ public class Card : UndoSource
 #region Variables
 
     [Foldout("Misc", true)]
-        [ReadOnly] public PhotonView pv;
         public CardData dataFile;
         [ReadOnly] public Button button;
         [ReadOnly] public int batteries { get; private set; }
@@ -345,28 +344,28 @@ public class Card : UndoSource
     IEnumerator GainCoins(Player player, int logged, bool undo)
     {
         yield return null;
-        player.MultiFunction(nameof(player.GainCoin), RpcTarget.All, new object[2] { dataFile.numCoins, logged });
+        player.CoinRPC(dataFile.numCoins, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator LoseCoins(Player player, int logged, bool undo)
     {
         yield return null;
-        player.MultiFunction(nameof(player.LoseCoin), RpcTarget.All, new object[2] { dataFile.numCoins, logged });
+        player.CoinRPC(-1*dataFile.numCoins, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator TakeNeg(Player player, int logged, bool undo)
     {
         yield return null;
-        player.MultiFunction(nameof(player.TakeNegCrown), RpcTarget.All, new object[2] { dataFile.numCrowns, logged });
+        player.CrownRPC(dataFile.numCrowns, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator RemoveNeg(Player player, int logged, bool undo)
     {
         yield return null;
-        player.MultiFunction(nameof(player.RemoveNegCrown), RpcTarget.All, new object[2] { dataFile.numCrowns, logged });
+        player.CrownRPC(-1*dataFile.numCrowns, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
@@ -432,13 +431,6 @@ public class Card : UndoSource
     IEnumerator ChooseFromHand(Player player, int logged, bool undo)
     {
         yield return player.ChooseCard(player.listOfHand, false);
-        MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    IEnumerator IgnoreUntilTurn(Player player, int logged, bool undo)
-    {
-        yield return null;
-        player.MultiFunction(nameof(player.IgnoreUntilTurn), RpcTarget.All, new object[1] { dataFile.numMisc });
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 

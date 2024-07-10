@@ -22,7 +22,6 @@ public class Player : UndoSource
         [SerializeField] Button playerButtonPrefab;
 
     [Foldout("Misc", true)]
-        [ReadOnly] public PhotonView pv;
         Canvas canvas;
         [ReadOnly] public int coins;
         [ReadOnly] public int negCrowns;
@@ -147,39 +146,28 @@ public class Player : UndoSource
 
     public void DiscardRPC(Card card, int logged)
     {
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(nameof(SendDiscard), RpcTarget.All, card.pv.ViewID, logged);
-        else
-            SendDiscard(card, logged);
+        Log.instance.AddUndoStep(this, this, nameof(SendDiscard));
+        Log.instance.AddCardToUndo(card);
+        MultiFunction(nameof(SendDiscard), RpcTarget.All, new object[2] { logged, false });
     }
 
     [PunRPC]
-    void SendDiscard(int cardID, int logged)
+    void SendDiscard(int logged, bool undo)
     {
-        Card discardMe = PhotonView.Find(cardID).GetComponent<Card>();
-        SendDiscard(discardMe, logged);
-    }
-
-    void SendDiscard(Card discardMe, int logged)
-    {
-        listOfPlay.Remove(discardMe);
-        listOfHand.Remove(discardMe);
-
-        discardMe.transform.SetParent(Manager.instance.discard);
-        StartCoroutine(discardMe.MoveCard(new Vector2(-2000, -330), new Vector3(0, 0, 0), 0.3f));
-        Log.instance.AddText($"{this.name} discards {discardMe.name}.", logged);
-
+        UndoStep step = Log.instance.GetNewStep();
+        if (undo)
+        {
+            StartInHand(step.cardsToRemember[0], 0f);
+        }
+        else
+        {
+            Card discardMe = step.cardsToRemember[0];
+            listOfHand.Remove(discardMe);
+            discardMe.transform.SetParent(Manager.instance.discard);
+            StartCoroutine(discardMe.MoveCard(new Vector2(-2000, -330), new Vector3(0, 0, 0), 0.3f));
+            Log.instance.AddText($"{this.name} discards {discardMe.name}.", logged);
+        }
         SortHand();
-        SortPlay();
-
-        if (PhotonNetwork.IsConnected && discardMe.pv.AmOwner)
-            StartCoroutine(DeleteJunk(discardMe.pv));
-    }
-
-    IEnumerator DeleteJunk(PhotonView junkPV)
-    {
-        yield return new WaitForSeconds(1f);
-        PhotonNetwork.Destroy(junkPV);
     }
 
     [PunRPC]
@@ -203,44 +191,54 @@ public class Player : UndoSource
             listOfDraw[i] = y;
         }
 
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(nameof(SendDraw), RpcTarget.All, cardIDs, logged);
-        else
-            AddToHand(listOfDraw, logged);
+        Log.instance.AddUndoStep(this, this, nameof(AddToHand));
+        foreach (Card card in listOfDraw)
+            Log.instance.AddCardToUndo(card);
+
+        MultiFunction(nameof(AddToHand), RpcTarget.All, new object[2] { logged, false });
     }
 
     [PunRPC]
-    void SendDraw(int[] cardIDs, int logged)
+    void AddToHand(int logged, bool undo)
     {
-        Card[] listOfCards = new Card[cardIDs.Length];
-        for (int i = 0; i < cardIDs.Length; i++)
-            listOfCards[i] = PhotonView.Find(cardIDs[i]).gameObject.GetComponent<Card>();
-
-        AddToHand(listOfCards, logged);
-    }
-
-    void AddToHand(Card[] listOfCards, int logged)
-    {
-        string cardList = "";
-        for (int i = 0; i < listOfCards.Length; i++)
+        UndoStep step = Log.instance.GetNewStep();
+        if (undo)
         {
-            Card newCard = listOfCards[i];
-            newCard.transform.SetParent(this.cardhand);
-            newCard.transform.localPosition = new Vector2(0, -1100);
-            newCard.cg.alpha = 0;
-            listOfHand.Add(newCard);
+            foreach (Card card in step.cardsToRemember.AsEnumerable().Reverse())
+            {
+                card.transform.SetParent(Manager.instance.deck);
+                card.transform.localPosition = new(-10000, -10000);
+                card.transform.SetAsFirstSibling();
+                listOfHand.Remove(card);
+            }
+        }
+        else
+        {
+            string cardList = "";
+            for (int i = 0; i < step.cardsToRemember.Count; i++)
+            {
+                Card newCard = step.cardsToRemember[i];
+                StartInHand(newCard, 0.3f);
+                cardList += $"{newCard.name}{(i < step.cardsToRemember.Count - 1 ? ", " : ".")}";
+            }
 
             if (!PhotonNetwork.IsConnected || this.pv.AmOwner)
-                StartCoroutine(newCard.RevealCard(0.3f));
-
-            cardList += $"{newCard.name}{(i < listOfCards.Length - 1 ? ", " : ".")}";
+                Log.instance.AddText($"{this.name} draws {cardList}", logged);
+            else
+                Log.instance.AddText($"{this.name} draws {step.cardsToRemember.Count} Card.");
         }
         SortHand();
+    }
+
+    void StartInHand(Card newCard, float time)
+    {
+        newCard.transform.SetParent(this.cardhand);
+        newCard.transform.localPosition = new Vector2(0, -1100);
+        newCard.cg.alpha = 0;
+        listOfHand.Add(newCard);
 
         if (!PhotonNetwork.IsConnected || this.pv.AmOwner)
-            Log.instance.AddText($"{this.name} draws {cardList}", logged);
-        else
-            Log.instance.AddText($"{this.name} draws {listOfCards.Length} Card.");
+            StartCoroutine(newCard.RevealCard(time));
     }
 
     public void SortHand()
@@ -349,7 +347,7 @@ public class Player : UndoSource
             listOfPlay.Add(card);
             card.transform.SetParent(cardplay);
 
-            LoseCoin(card.dataFile.coinCost, logged);
+            //LoseCoin(card.dataFile.coinCost, logged);
             Log.instance.AddText($"{this.name} plays {card.name}.", logged);
 
             SortHand();
@@ -367,47 +365,62 @@ public class Player : UndoSource
 
 #region Resources
 
-    [PunRPC]
-    public void GainCoin(int coins, int logged)
+    public void CoinRPC(int number, int logged)
     {
-        this.coins += coins;
-        if (coins > 0)
-            Log.instance.AddText($"{this.name} gains {coins} Coin.", logged);
-        UpdateButton();
+        Log.instance.AddUndoStep(this, this, nameof(ChangeCoin));
+        Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { number });
+        MultiFunction(nameof(ChangeCoin), RpcTarget.All, new object[2] { logged, false });
     }
 
     [PunRPC]
-    public void LoseCoin(int coins, int logged)
+    void ChangeCoin(int logged, bool undo)
     {
-        this.coins = Mathf.Max(this.coins - coins, 0);
-        if (coins > 0)
-        Log.instance.AddText($"{this.name} loses {coins} Coin.", logged);
+        UndoStep step = Log.instance.GetNewStep();
+        if (undo)
+        {
+            this.coins -= step.numberToRemember;
+        }
+        else if (step.numberToRemember != 0)
+        {
+            int numberToChange = (this.coins + step.numberToRemember < 0) ? this.coins : this.coins + step.numberToRemember;
+            this.coins += numberToChange;
+            Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { numberToChange });
+
+            if (numberToChange > 0)
+                Log.instance.AddText($"{this.name} gains {numberToChange} Coin.", logged);
+            else
+                Log.instance.AddText($"{this.name} loses {numberToChange} Coin.", logged);
+        }
         UpdateButton();
     }
 
-    [PunRPC]
-    public void TakeNegCrown(int crowns, int logged)
+    public void CrownRPC(int number, int logged)
     {
-        this.negCrowns += crowns;
-        if (crowns > 0)
-            Log.instance.AddText($"{this.name} takes -{crowns} Neg Crown.", logged);
-        UpdateButton();
+        Log.instance.AddUndoStep(this, this, nameof(ChangeCrown));
+        Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { number });
+        MultiFunction(nameof(ChangeCrown), RpcTarget.All, new object[2] { logged, false });
     }
 
     [PunRPC]
-    public void RemoveNegCrown(int crowns, int logged)
+    void ChangeCrown(int logged, bool undo)
     {
-        this.negCrowns = Mathf.Max(this.negCrowns - crowns, 0);
-        if (crowns > 0)
-            Log.instance.AddText($"{this.name} removes -{crowns} Neg Crown.", logged);
-        UpdateButton();
-    }
+        UndoStep step = Log.instance.GetNewStep();
+        if (undo)
+        {
+            this.negCrowns -= step.numberToRemember;
+        }
+        else if (step.numberToRemember != 0)
+        {
+            int numberToChange = (this.coins + step.numberToRemember < 0) ? this.negCrowns : this.negCrowns + step.numberToRemember;
+            this.negCrowns += numberToChange;
+            Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { numberToChange });
 
-    [PunRPC]
-    public void IgnoreUntilTurn(int amount)
-    {
-        if (amount > ignoreInstructions)
-            ignoreInstructions = amount;
+            if (numberToChange > 0)
+                Log.instance.AddText($"{this.name} takes -{numberToChange} Neg Crown.", logged);
+            else
+                Log.instance.AddText($"{this.name} removes -{numberToChange} Neg Crown.", logged);
+        }
+        UpdateButton();
     }
 
     public int CalculateScore()

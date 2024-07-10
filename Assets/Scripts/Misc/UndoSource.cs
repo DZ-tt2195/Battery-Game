@@ -2,12 +2,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Reflection;
+using Photon.Pun;
+using MyBox;
 
 public class UndoSource : MonoBehaviour
 {
-    protected Dictionary<string, string> undoDictionary = new();
     public Dictionary<string, MethodInfo> methodDictionary = new();
     [SerializeField] protected List<string> executeInstructions = new();
+    [ReadOnly] public PhotonView pv;
 
     public virtual void ExecuteCommand(Player player)
     {
@@ -16,12 +18,6 @@ public class UndoSource : MonoBehaviour
     public virtual IEnumerator UndoCommand(UndoStep step)
     {
         yield return null;
-    }
-
-    protected void AddToUndoDictionary(string firstName, string secondName)
-    {
-        if (!undoDictionary.ContainsKey(firstName))
-            undoDictionary.Add(firstName, secondName);
     }
 
     protected virtual void AddToMethodDictionary(string methodName)

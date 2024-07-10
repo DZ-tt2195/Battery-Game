@@ -28,8 +28,8 @@ public class UndoStep
     public UndoSource source;
     public Player user;
     public string instruction;
-    public List<GameObject> objectsToRemember = new();
-    public int numberToRemember;
+    public List<Card> cardsToRemember = new();
+    public int numberToRemember { get; internal set; }
 
     public UndoStep(int playerPosition, int sourceID, string instruction)
     {
@@ -56,17 +56,17 @@ public class Log : MonoBehaviour
     [ReadOnly] public PhotonView pv;
 
     [Foldout("Log", true)]
-        Scrollbar scroll;
-        [SerializeField] RectTransform RT;
-        GridLayoutGroup gridGroup;
-        float startingHeight;
-        [SerializeField] LogText textBoxClone;
-        public Dictionary<string, MethodInfo> dictionary = new();
+    Scrollbar scroll;
+    [SerializeField] RectTransform RT;
+    GridLayoutGroup gridGroup;
+    float startingHeight;
+    [SerializeField] LogText textBoxClone;
+    public Dictionary<string, MethodInfo> dictionary = new();
 
     [Foldout("Undo", true)]
-        List<UndoProcess> historyStack = new();
-        List<Button> undosInLog = new();
-        bool nextUndoBar = false;
+    List<UndoProcess> historyStack = new();
+    List<Button> undosInLog = new();
+    bool nextUndoBar = false;
 
     #endregion
 
@@ -153,14 +153,14 @@ public class Log : MonoBehaviour
             undosInLog.Insert(0, newText.GetComponent<Button>());
         }
 
-        if (RT.transform.childCount >= (startingHeight / gridGroup.cellSize.y)-1)
+        if (RT.transform.childCount >= (startingHeight / gridGroup.cellSize.y) - 1)
         {
             RT.sizeDelta = new Vector2(RT.sizeDelta.x, RT.sizeDelta.y + gridGroup.cellSize.y);
 
             if (scroll.value <= 0.2f)
             {
                 scroll.value = 0;
-                RT.transform.localPosition = new Vector3(RT.transform.localPosition.x, RT.transform.localPosition.y + gridGroup.cellSize.y/2, 0);
+                RT.transform.localPosition = new Vector3(RT.transform.localPosition.x, RT.transform.localPosition.y + gridGroup.cellSize.y / 2, 0);
             }
         }
     }
@@ -191,16 +191,34 @@ public class Log : MonoBehaviour
     }
 
     [PunRPC]
-    public void AddUndoPoint(UndoProcess process)
+    public void AddUndoPoint(int playerPosition)
     {
-        historyStack.Add(process);
+        historyStack.Add(new(playerPosition));
         instance.nextUndoBar = true;
     }
 
+    public void AddUndoStep(Player user, UndoSource source, string instruction)
+    {
+        if (PhotonNetwork.IsConnected)
+        {
+            pv.RPC(nameof(AddStepToStack), RpcTarget.All, new object[3] { user.pv.ViewID, source.pv.ViewID, instruction });
+        }
+        else
+        {
+            AddStepToStack(user, source, instruction);
+        }
+    }
+
     [PunRPC]
-    public UndoStep AddUndoStep(Player user, UndoSource source, string instruction)
+    void AddStepToStack(int userID, int sourceID, string instruction)
+    {
+        AddStepToStack(PhotonView.Find(userID).GetComponent<Player>(), PhotonView.Find(sourceID).GetComponent<UndoSource>(), instruction);
+    }
+
+    void AddStepToStack(Player user, UndoSource source, string instruction)
     {
         UndoProcess currentProcess = historyStack[^1];
+
         if (currentProcess.listOfSteps.Count == 0 || currentProcess.listOfSteps[0].instruction != "")
         {
             currentProcess.listOfSteps.Insert(0, new(user, source, instruction));
@@ -209,7 +227,6 @@ public class Log : MonoBehaviour
         {
             currentProcess.listOfSteps[0] = new(user, source, instruction);
         }
-        return currentProcess.listOfSteps[0];
     }
 
     [PunRPC]
@@ -233,6 +250,42 @@ public class Log : MonoBehaviour
         {
             Destroy(RT.transform.GetChild(RT.transform.childCount - i).gameObject);
         }
+    }
+
+    [PunRPC]
+    public void AddNumber(int number)
+    {
+        UndoStep currentStep = historyStack[^1].listOfSteps[0];
+        currentStep.numberToRemember = number;
+    }
+
+    public void AddCardToUndo(Card card)
+    {
+        if (PhotonNetwork.IsConnected)
+        {
+            MultiFunction(nameof(AddCardToList), RpcTarget.All, new object[1] { card.pv.ViewID });
+        }
+        else
+        {
+            AddCardToList(card);
+        }
+    }
+
+    [PunRPC]
+    void AddCardToList(int ID)
+    {
+        AddCardToList(PhotonView.Find(ID).GetComponent<Card>());
+    }
+
+    void AddCardToList(Card card)
+    {
+        UndoStep currentStep = historyStack[^1].listOfSteps[0];
+        currentStep.cardsToRemember.Add(card);
+    }
+
+    public UndoStep GetNewStep()
+    {
+        return historyStack[^1].listOfSteps[0];
     }
 
     #endregion

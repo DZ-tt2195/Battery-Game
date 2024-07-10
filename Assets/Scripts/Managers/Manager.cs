@@ -175,7 +175,7 @@ public class Manager : MonoBehaviour
         foreach (Player player in playersInOrder)
         {
             player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[2] { 2, 0 });
-            player.MultiFunction(nameof(player.GainCoin), RpcTarget.All, new object[2] { 4, 0 });
+            player.CoinRPC(4, -1);
         }
     }
 
