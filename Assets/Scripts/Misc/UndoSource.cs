@@ -11,16 +11,23 @@ public class UndoSource : MonoBehaviour
     [SerializeField] protected List<string> executeInstructions = new();
     [ReadOnly] public PhotonView pv;
 
-    public virtual void ExecuteCommand(Player player)
+    public void UndoCommand(UndoStep step)
     {
-    }
+        if (!methodDictionary.ContainsKey(step.instruction))
+            AddToMethodDictionary(step.instruction);
 
-    public virtual IEnumerator UndoCommand(UndoStep step)
-    {
-        yield return null;
+        try
+        {
+            StartCoroutine((IEnumerator)methodDictionary[step.instruction].Invoke(this, new object[2] { this, true }));
+        }
+        catch
+        {
+            methodDictionary[step.instruction].Invoke(this, new object[2] { this, true });
+        }
     }
 
     protected virtual void AddToMethodDictionary(string methodName)
     {
+
     }
 }

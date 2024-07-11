@@ -222,18 +222,7 @@ public class Card : UndoSource
 
     public IEnumerator PlayInstructions(Player player, int logged)
     {
-        if (player.ignoreInstructions == 0 || Manager.instance.listOfActions.Contains(this))
-            yield return ResolveInstructions(dataFile.playInstructions, player, logged, false);
-        else
-            Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} ignores {this.name}'s instructions.", logged });
-    }
-
-    public override IEnumerator UndoCommand(UndoStep step)
-    {
-        if (!methodDictionary.ContainsKey(step.instruction))
-            AddToMethodDictionary(step.instruction);
-
-        yield return ((IEnumerator)methodDictionary[step.instruction].Invoke(this, new object[3] { step, true, true }));
+        yield return ResolveInstructions(dataFile.playInstructions, player, logged, false);
     }
 
     [PunRPC]

@@ -210,8 +210,9 @@ public class Manager : MonoBehaviour
             MultiFunction(nameof(UpdateTurnNumber), RpcTarget.All, new object[1] { j });
             foreach (Player player in playersInOrder)
             {
-                yield return player.TakeTurnRPC(j);
-                yield return new WaitForSeconds(0.25f);
+                player.TakeTurnRPC(j);
+                while (player.myTurn)
+                    yield return null;
             }
         }
 

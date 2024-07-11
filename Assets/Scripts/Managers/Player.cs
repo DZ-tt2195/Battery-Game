@@ -18,14 +18,13 @@ public class Player : UndoSource
 #region Variables
 
     [Foldout("Prefabs", true)]
-        [SerializeField] Card junkPrefab;
         [SerializeField] Button playerButtonPrefab;
 
     [Foldout("Misc", true)]
         Canvas canvas;
         [ReadOnly] public int coins;
         [ReadOnly] public int negCrowns;
-        bool myTurn;
+        [ReadOnly] public bool myTurn { get; private set; }
         [ReadOnly] public int playerPosition;
 
     [Foldout("UI", true)]
@@ -41,7 +40,6 @@ public class Player : UndoSource
         [ReadOnly] public int choice;
         [ReadOnly] public Card chosenCard;
         [ReadOnly] public Card lastUsedAction;
-        [ReadOnly] public int ignoreInstructions = 0;
 
     #endregion
 
@@ -130,14 +128,6 @@ public class Player : UndoSource
     void MoveScreen()
     {
         storePlayers.localPosition = new Vector3(-2500 * this.playerPosition, 0, 0);
-    }
-
-    public override IEnumerator UndoCommand(UndoStep step)
-    {
-        if (!methodDictionary.ContainsKey(step.instruction))
-            AddToMethodDictionary(step.instruction);
-
-        yield return ((IEnumerator)methodDictionary[step.instruction].Invoke(this, new object[2] { step, true }));
     }
 
     #endregion
@@ -320,45 +310,36 @@ public class Player : UndoSource
         if (chosenCard != null)
         {
             Card cardToPlay = chosenCard;
-
-            if (PhotonNetwork.IsConnected)
-                pv.RPC(nameof(PhotonViewToPlay), RpcTarget.All, cardToPlay.pv.ViewID, logged);
-            else
-                AddToPlayArea(cardToPlay, logged);
-
+            CoinRPC(cardToPlay.dataFile.coinCost, logged);
+            MultiFunction(nameof(AddToPlayArea), RpcTarget.All, new object[2] { logged, false });
             cardToPlay.MultiFunction(nameof(cardToPlay.AddBatteries), RpcTarget.All, new object[3] { this.playerPosition, cardToPlay.dataFile.startingBatteries, logged });
         }
     }
 
-    void AddToPlayArea(Card card, int logged)
-    {
-        if (card == null)
-        {
-            Log.instance.AddText($"{this.name} doesn't play anything.", logged);
-            SortHand();
-            SortPlay();
-        }
-        else
-        {
-            card.name = card.name.Replace("(Clone)", "");
-            card.cg.alpha = 1;
-
-            listOfHand.Remove(card);
-            listOfPlay.Add(card);
-            card.transform.SetParent(cardplay);
-
-            //LoseCoin(card.dataFile.coinCost, logged);
-            Log.instance.AddText($"{this.name} plays {card.name}.", logged);
-
-            SortHand();
-            SortPlay();
-        }
-    }
-
     [PunRPC]
-    void PhotonViewToPlay(int cardID, int logged)
+    void AddToPlayArea(int logged, bool undo)
     {
-        AddToPlayArea(PhotonView.Find(cardID).GetComponent<Card>(), logged);
+        UndoStep step = Log.instance.GetNewStep();
+        if (step.cardsToRemember.Count == 0)
+        {
+            if (undo)
+            {
+                StartInHand(step.cardsToRemember[0], 0f);
+            }
+            else
+            {
+                Card newCard = step.cardsToRemember[0];
+                newCard.name = newCard.name.Replace("(Clone)", "");
+                newCard.cg.alpha = 1;
+
+                listOfHand.Remove(newCard);
+                listOfPlay.Add(newCard);
+                newCard.transform.SetParent(cardplay);
+                Log.instance.AddText($"{this.name} plays {newCard.name}.", logged);
+            }
+        }
+        SortHand();
+        SortPlay();
     }
 
     #endregion
@@ -433,14 +414,12 @@ public class Player : UndoSource
 
     #endregion
 
-#region Turn/Decisions
+#region Turn
 
-    public IEnumerator TakeTurnRPC(int turnNumber)
+    public void TakeTurnRPC(int turnNumber)
     {
         StartCoroutine(MultiEnumerator(nameof(TakeTurn), RpcTarget.All, new object[1] {turnNumber} ));
         myTurn = true;
-        while (myTurn)
-            yield return null;
     }
 
     [PunRPC]
@@ -500,63 +479,89 @@ public class Player : UndoSource
     {
         lastUsedAction = Manager.instance.listOfActions[chosenAction];
         myTurn = false;
-        ignoreInstructions = Mathf.Max(0, ignoreInstructions - 1);
     }
+
+    #endregion
+
+#region Decisions
 
     public IEnumerator ChooseCard(List<Card> possibleCards, bool optional)
     {
-        choice = -10;
-        chosenCard = null;
+        Log.instance.AddUndoPoint(this.playerPosition);
+        Log.instance.AddUndoStep(this, this, nameof(ChooseCardFromList));
+        foreach (Card card in possibleCards)
+            Log.instance.AddCardToUndo(card);
+        Log.instance.AddBool(optional);
+        yield return ChooseCardFromList(-1, false);
 
-        if (possibleCards.Count > 0)
+        Log.instance.AddUndoStep(this, this, nameof(ChooseCardFromList));
+        Log.instance.AddCardToUndo(chosenCard);
+    }
+
+    IEnumerator ChooseCardFromList(int logged, bool undo)
+    {
+        UndoStep step = Log.instance.GetNewStep();
+        if (undo)
         {
-            Popup popup = null;
-
-            if (optional)
-            {
-                popup = Instantiate(CarryVariables.instance.textPopup);
-                popup.transform.SetParent(GameObject.Find("Canvas").transform);
-                popup.StatsSetup("Decline?", Vector3.zero);
-                popup.AddTextButton("Decline");
-                StartCoroutine(popup.WaitForChoice());
-            }
-
-            for (int i = 0; i < possibleCards.Count; i++)
-            {
-                Card nextCard = possibleCards[i];
-                int buttonNumber = i;
-
-                nextCard.button.onClick.RemoveAllListeners();
-                nextCard.button.interactable = true;
-                nextCard.button.onClick.AddListener(() => ReceiveChoice(buttonNumber));
-                nextCard.border.gameObject.SetActive(true);
-            }
-
-            if (possibleCards.Count == 1 && !optional)
-            {
-                choice = 0;
-            }
-            else
-            {
-                while (choice == -10)
-                {
-                    yield return null;
-                    if (optional && popup.chosenButton > -10)
-                        break;
-                }
-            }
-
-            if (popup != null)
+            Popup[] allPopups = FindObjectsOfType<Popup>();
+            foreach (Popup popup in allPopups)
                 Destroy(popup.gameObject);
+        }
+        else
+        {
+            choice = -10;
+            chosenCard = null;
 
-            chosenCard = (choice >= 0) ? possibleCards[choice] : null;
-
-            for (int i = 0; i < possibleCards.Count; i++)
+            if (step.cardsToRemember.Count > 0)
             {
-                Card nextCard = possibleCards[i];
-                nextCard.button.onClick.RemoveAllListeners();
-                nextCard.button.interactable = false;
-                nextCard.border.gameObject.SetActive(false);
+                Popup popup = null;
+
+                if (step.boolToRemember)
+                {
+                    popup = Instantiate(CarryVariables.instance.textPopup);
+                    popup.transform.SetParent(GameObject.Find("Canvas").transform);
+                    popup.StatsSetup("Decline?", Vector3.zero);
+                    popup.AddTextButton("Decline");
+                    StartCoroutine(popup.WaitForChoice());
+                }
+
+                for (int i = 0; i < step.cardsToRemember.Count; i++)
+                {
+                    Card nextCard = step.cardsToRemember[i];
+                    int buttonNumber = i;
+
+                    nextCard.button.onClick.RemoveAllListeners();
+                    nextCard.button.interactable = true;
+                    nextCard.button.onClick.AddListener(() => ReceiveChoice(buttonNumber));
+                    nextCard.border.gameObject.SetActive(true);
+                }
+
+                if (step.cardsToRemember.Count == 1 && !step.boolToRemember)
+                {
+                    choice = 0;
+                }
+                else
+                {
+                    while (choice == -10)
+                    {
+                        yield return null;
+                        if (step.boolToRemember && popup.chosenButton > -10)
+                            break;
+                    }
+                }
+
+                if (popup != null)
+                    Destroy(popup.gameObject);
+
+                chosenCard = (choice >= 0) ? step.cardsToRemember[choice] : null;
+
+                for (int i = 0; i < step.cardsToRemember.Count; i++)
+                {
+                    Card nextCard = step.cardsToRemember[i];
+                    nextCard.button.onClick.RemoveAllListeners();
+                    nextCard.button.interactable = false;
+                    nextCard.border.gameObject.SetActive(false);
+                }
             }
         }
     }

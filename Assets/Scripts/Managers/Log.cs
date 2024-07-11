@@ -30,6 +30,7 @@ public class UndoStep
     public string instruction;
     public List<Card> cardsToRemember = new();
     public int numberToRemember { get; internal set; }
+    public bool boolToRemember { get; internal set; }
 
     public UndoStep(int playerPosition, int sourceID, string instruction)
     {
@@ -67,6 +68,7 @@ public class Log : MonoBehaviour
     List<UndoProcess> historyStack = new();
     List<Button> undosInLog = new();
     bool nextUndoBar = false;
+    Button undoButton;
 
     #endregion
 
@@ -79,6 +81,8 @@ public class Log : MonoBehaviour
         scroll = this.transform.GetChild(1).GetComponent<Scrollbar>();
         instance = this;
         pv = GetComponent<PhotonView>();
+        undoButton = GameObject.Find("Undo Button").GetComponent<Button>();
+        undoButton.onClick.AddListener(() => DisplayUndoBar(true));
     }
 
     public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
@@ -182,12 +186,12 @@ public class Log : MonoBehaviour
             if (on)
             {
                 int number = i;
-                nextButton.onClick.AddListener(() => MultiFunction(nameof(Undo), RpcTarget.All, new object[1] { number }));
+                nextButton.onClick.AddListener(() => MultiFunction(nameof(UndoAmount), RpcTarget.All, new object[1] { number }));
             }
         }
 
-        //undoButton.onClick.RemoveAllListeners();
-        //undoButton.onClick.AddListener(() => DisplayUndoBar(!on));
+        undoButton.onClick.RemoveAllListeners();
+        undoButton.onClick.AddListener(() => DisplayUndoBar(!on));
     }
 
     [PunRPC]
@@ -230,33 +234,17 @@ public class Log : MonoBehaviour
     }
 
     [PunRPC]
-    void Undo(int amount)
-    {
-        DisplayUndoBar(false);
-        int linesToDelete = 0;
-        int currentStackCount = historyStack.Count - 1;
-
-        for (int i = 0; i <= amount; i++)
-        {
-            UndoProcess process = historyStack[currentStackCount - i];
-            historyStack.RemoveAt(currentStackCount - i);
-            linesToDelete += process.addedLogLines;
-
-            foreach (UndoStep step in process.listOfSteps)
-                StartCoroutine(step.source.UndoCommand(step));
-        }
-
-        for (int i = 1; i <= linesToDelete; i++)
-        {
-            Destroy(RT.transform.GetChild(RT.transform.childCount - i).gameObject);
-        }
-    }
-
-    [PunRPC]
     public void AddNumber(int number)
     {
         UndoStep currentStep = historyStack[^1].listOfSteps[0];
         currentStep.numberToRemember = number;
+    }
+
+    [PunRPC]
+    public void AddBool(bool boolean)
+    {
+        UndoStep currentStep = historyStack[^1].listOfSteps[0];
+        currentStep.boolToRemember = boolean;
     }
 
     public void AddCardToUndo(Card card)
@@ -286,6 +274,37 @@ public class Log : MonoBehaviour
     public UndoStep GetNewStep()
     {
         return historyStack[^1].listOfSteps[0];
+    }
+
+    [PunRPC]
+    void UndoAmount(int amount)
+    {
+        DisplayUndoBar(false);
+        int linesToDelete = 0;
+        int currentStackCount = historyStack.Count - 1;
+
+        UndoStep lastStep = null;
+
+        for (int i = 0; i <= amount; i++)
+        {
+            UndoProcess process = historyStack[currentStackCount - i];
+            historyStack.RemoveAt(currentStackCount - i);
+            linesToDelete += process.addedLogLines;
+
+            foreach (UndoStep step in process.listOfSteps)
+            {
+                lastStep = step;
+                step.source.StopAllCoroutines();
+                step.source.UndoCommand(step);
+            }
+        }
+
+        for (int i = 1; i <= linesToDelete; i++)
+        {
+            Destroy(RT.transform.GetChild(RT.transform.childCount - i).gameObject);
+        }
+
+        lastStep.source.methodDictionary[lastStep.instruction].Invoke(lastStep.source, new object[2] {-1, false});
     }
 
     #endregion
