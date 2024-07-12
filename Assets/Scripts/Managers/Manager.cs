@@ -11,14 +11,12 @@ using Photon.Realtime;
 using System.Linq;
 using System.Reflection;
 
-[RequireComponent(typeof(PhotonView))]
-public class Manager : MonoBehaviour
+public class Manager : UndoSource
 {
 
 #region Variables
 
     public static Manager instance;
-    [ReadOnly] public PhotonView pv;
 
     [Foldout("Text", true)]
     public TMP_Text instructions;
@@ -54,29 +52,7 @@ public class Manager : MonoBehaviour
         pv = GetComponent<PhotonView>();
     }
 
-    public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
-    {
-        if (!dictionary.ContainsKey(methodName))
-            AddToDictionary(methodName);
-
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(dictionary[methodName].Name, affects, parameters);
-        else
-            dictionary[methodName].Invoke(this, parameters);
-    }
-
-    public IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
-    {
-        if (!dictionary.ContainsKey(methodName))
-            AddToDictionary(methodName);
-
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(dictionary[methodName].Name, affects, parameters);
-        else
-            yield return (IEnumerator)dictionary[methodName].Invoke(this, parameters);
-    }
-
-    void AddToDictionary(string methodName)
+    protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Manager).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
@@ -175,7 +151,7 @@ public class Manager : MonoBehaviour
         foreach (Player player in playersInOrder)
         {
             player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[2] { 2, 0 });
-            player.CoinRPC(4, -1);
+            player.CoinRPC(this, 4, -1);
         }
     }
 

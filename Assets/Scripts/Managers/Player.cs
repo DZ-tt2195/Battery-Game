@@ -11,7 +11,6 @@ using System.Linq;
 using MyBox;
 using System.Reflection;
 
-[RequireComponent(typeof(PhotonView))]
 public class Player : UndoSource
 {
 
@@ -66,28 +65,6 @@ public class Player : UndoSource
             this.name = pv.Owner.NickName;
     }
 
-    public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
-    {
-        if (!methodDictionary.ContainsKey(methodName))
-            AddToMethodDictionary(methodName);
-
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
-        else
-            methodDictionary[methodName].Invoke(this, parameters);
-    }
-
-    public IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
-    {
-        if (!methodDictionary.ContainsKey(methodName))
-            AddToMethodDictionary(methodName);
-
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
-        else
-            yield return (IEnumerator)methodDictionary[methodName].Invoke(this, parameters);
-    }
-
     protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Player).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -134,17 +111,16 @@ public class Player : UndoSource
 
 #region Cards in Hand
 
-    public void DiscardRPC(Card card, int logged)
+    public void DiscardRPC(UndoSource source, Card card, int logged)
     {
-        Log.instance.AddUndoStep(this, this, nameof(SendDiscard));
-        Log.instance.AddCardToUndo(card);
-        MultiFunction(nameof(SendDiscard), RpcTarget.All, new object[2] { logged, false });
+        Log.instance.AddStepRPC(this, null, source, nameof(SendDiscard), new() { card } , 0, false, logged);
+        Log.instance.Continue();
     }
 
     [PunRPC]
     void SendDiscard(int logged, bool undo)
     {
-        UndoStep step = Log.instance.GetNewStep();
+        NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
             StartInHand(step.cardsToRemember[0], 0f);
@@ -161,10 +137,9 @@ public class Player : UndoSource
     }
 
     [PunRPC]
-    public void RequestDraw(int cardsToDraw, int logged)
+    public void RequestDraw(int sourceID, int cardsToDraw, int logged)
     {
-        int[] cardIDs = new int[cardsToDraw];
-        Card[] listOfDraw = new Card[cardsToDraw];
+        List<Card> listOfCards = new();
 
         for (int i = 0; i < cardsToDraw; i++)
         {
@@ -175,23 +150,17 @@ public class Player : UndoSource
                     Manager.instance.discard.GetChild(0).SetParent(Manager.instance.deck);
             }
 
-            PhotonView x = Manager.instance.deck.GetChild(i).GetComponent<PhotonView>();
-            cardIDs[i] = x.ViewID;
-            Card y = Manager.instance.deck.GetChild(i).GetComponent<Card>();
-            listOfDraw[i] = y;
+            listOfCards.Add(Manager.instance.deck.GetChild(i).GetComponent<Card>());
         }
 
-        Log.instance.AddUndoStep(this, this, nameof(AddToHand));
-        foreach (Card card in listOfDraw)
-            Log.instance.AddCardToUndo(card);
-
-        MultiFunction(nameof(AddToHand), RpcTarget.All, new object[2] { logged, false });
+        Log.instance.AddStepRPC(this, null, PhotonView.Find(sourceID).GetComponent<UndoSource>(), nameof(AddToHand), listOfCards, -1, false, logged);
+        Log.instance.Continue();
     }
 
     [PunRPC]
     void AddToHand(int logged, bool undo)
     {
-        UndoStep step = Log.instance.GetNewStep();
+        NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
             foreach (Card card in step.cardsToRemember.AsEnumerable().Reverse())
@@ -299,32 +268,38 @@ public class Player : UndoSource
             StartCoroutine(card.RevealCard(0.25f));
     }
 
-    public IEnumerator ChooseCardToPlay(List<Card> cardsToPlay, int logged)
+    public IEnumerator ChooseCardToPlay(UndoSource source, List<Card> cardsToPlay, int logged)
     {
         if (cardsToPlay.Count == 0)
             yield break;
 
-        Manager.instance.instructions.text = "Choose a card to play.";
-        yield return ChooseCard(cardsToPlay, true);
+        Log.instance.AddStepRPC(this, this, source, nameof(PlayChosenCard), null, -1, true, logged);
+        Log.instance.AddStepRPC(this, this, source, nameof(ChooseCardFromList), cardsToPlay, -1, true, logged);
 
+        Manager.instance.instructions.text = "Choose a card to play.";
+        Log.instance.Continue();
+    }
+
+    void PlayChosenCard(int logged, bool undo)
+    {
         if (chosenCard != null)
         {
             Card cardToPlay = chosenCard;
-            CoinRPC(cardToPlay.dataFile.coinCost, logged);
+            CoinRPC(cardToPlay, cardToPlay.dataFile.coinCost, logged);
             MultiFunction(nameof(AddToPlayArea), RpcTarget.All, new object[2] { logged, false });
-            cardToPlay.MultiFunction(nameof(cardToPlay.AddBatteries), RpcTarget.All, new object[3] { this.playerPosition, cardToPlay.dataFile.startingBatteries, logged });
         }
     }
 
     [PunRPC]
     void AddToPlayArea(int logged, bool undo)
     {
-        UndoStep step = Log.instance.GetNewStep();
+        NextStep step = Log.instance.GetCurrentStep();
         if (step.cardsToRemember.Count == 0)
         {
             if (undo)
             {
-                StartInHand(step.cardsToRemember[0], 0f);
+                Card newCard = step.cardsToRemember[0];
+                StartInHand(newCard, 0f);
             }
             else
             {
@@ -335,7 +310,9 @@ public class Player : UndoSource
                 listOfHand.Remove(newCard);
                 listOfPlay.Add(newCard);
                 newCard.transform.SetParent(cardplay);
+
                 Log.instance.AddText($"{this.name} plays {newCard.name}.", logged);
+                newCard.BatteryRPC(this, newCard.dataFile.startingBatteries, logged);
             }
         }
         SortHand();
@@ -346,17 +323,16 @@ public class Player : UndoSource
 
 #region Resources
 
-    public void CoinRPC(int number, int logged)
+    public void CoinRPC(UndoSource source, int number, int logged)
     {
-        Log.instance.AddUndoStep(this, this, nameof(ChangeCoin));
-        Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { number });
-        MultiFunction(nameof(ChangeCoin), RpcTarget.All, new object[2] { logged, false });
+        Log.instance.AddStepRPC(this, null, source, nameof(ChangeCoin), null, number, false, logged);
+        Log.instance.Continue();
     }
 
     [PunRPC]
-    void ChangeCoin(int logged, bool undo)
+    void ChangeCoin( int logged, bool undo)
     {
-        UndoStep step = Log.instance.GetNewStep();
+        NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
             this.coins -= step.numberToRemember;
@@ -365,7 +341,7 @@ public class Player : UndoSource
         {
             int numberToChange = (this.coins + step.numberToRemember < 0) ? this.coins : this.coins + step.numberToRemember;
             this.coins += numberToChange;
-            Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { numberToChange });
+            Log.instance.MultiFunction(nameof(Log.instance.ChangeNumber), RpcTarget.All, new object[1] { numberToChange });
 
             if (numberToChange > 0)
                 Log.instance.AddText($"{this.name} gains {numberToChange} Coin.", logged);
@@ -375,17 +351,16 @@ public class Player : UndoSource
         UpdateButton();
     }
 
-    public void CrownRPC(int number, int logged)
+    public void CrownRPC(UndoSource source, int number, int logged)
     {
-        Log.instance.AddUndoStep(this, this, nameof(ChangeCrown));
-        Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { number });
-        MultiFunction(nameof(ChangeCrown), RpcTarget.All, new object[2] { logged, false });
+        Log.instance.AddStepRPC(this, null, source, nameof(ChangeCrown), null, number, false, logged);
+        Log.instance.Continue();
     }
 
     [PunRPC]
-    void ChangeCrown(int logged, bool undo)
+    void ChangeCrown( int logged, bool undo)
     {
-        UndoStep step = Log.instance.GetNewStep();
+        NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
             this.negCrowns -= step.numberToRemember;
@@ -394,7 +369,7 @@ public class Player : UndoSource
         {
             int numberToChange = (this.coins + step.numberToRemember < 0) ? this.negCrowns : this.negCrowns + step.numberToRemember;
             this.negCrowns += numberToChange;
-            Log.instance.MultiFunction(nameof(Log.instance.AddNumber), RpcTarget.All, new object[1] { numberToChange });
+            Log.instance.MultiFunction(nameof(Log.instance.ChangeNumber), RpcTarget.All, new object[1] { numberToChange });
 
             if (numberToChange > 0)
                 Log.instance.AddText($"{this.name} takes -{numberToChange} Neg Crown.", logged);
@@ -462,12 +437,12 @@ public class Player : UndoSource
         do
         {
             availableRobots = listOfPlay.Where(robot => robot.batteries > 0 && !resolvedRobots.Contains(robot)).ToList();
-            yield return ChooseCard(availableRobots, false);
+            ChooseCard(this, availableRobots, false, 0);
 
             if (chosenCard != null)
             {
                 resolvedRobots.Add(chosenCard);
-                chosenCard.MultiFunction(nameof(chosenCard.RemoveBatteries), RpcTarget.All, new object[3] { this.playerPosition, 1, 0 });
+                chosenCard.BatteryRPC(this, -1, 1);
                 yield return chosenCard.PlayInstructions(this, 1);
             }
 
@@ -485,27 +460,17 @@ public class Player : UndoSource
 
 #region Decisions
 
-    public IEnumerator ChooseCard(List<Card> possibleCards, bool optional)
+    public void ChooseCard(UndoSource source, List<Card> possibleCards, bool optional, int logged)
     {
-        Log.instance.AddUndoPoint(this.playerPosition);
-        Log.instance.AddUndoStep(this, this, nameof(ChooseCardFromList));
-        foreach (Card card in possibleCards)
-            Log.instance.AddCardToUndo(card);
-        Log.instance.AddBool(optional);
-        yield return ChooseCardFromList(-1, false);
-
-        Log.instance.AddUndoStep(this, this, nameof(ChooseCardFromList));
-        Log.instance.AddCardToUndo(chosenCard);
+        Log.instance.AddStepRPC(this, this, source, nameof(ChooseCardFromList), possibleCards, -1, optional, logged);
+        Log.instance.Continue();
     }
 
     IEnumerator ChooseCardFromList(int logged, bool undo)
     {
-        UndoStep step = Log.instance.GetNewStep();
+        NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
-            Popup[] allPopups = FindObjectsOfType<Popup>();
-            foreach (Popup popup in allPopups)
-                Destroy(popup.gameObject);
         }
         else
         {

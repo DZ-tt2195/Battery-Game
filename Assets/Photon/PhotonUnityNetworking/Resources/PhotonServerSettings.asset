@@ -77,6 +77,10 @@ MonoBehaviour:
   - UndoAmount
   - AddBool
   - AddToPlayArea
+  - AddStep
+  - Continue
+  - ChangeBatteries
+  - ChangeNumber
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0

@@ -40,28 +40,6 @@ public class Card : UndoSource
         cg = transform.Find("Canvas Group").GetComponent<CanvasGroup>();
     }
 
-    public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
-    {
-        if (!methodDictionary.ContainsKey(methodName))
-            AddToMethodDictionary(methodName);
-
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
-        else
-            methodDictionary[methodName].Invoke(this, parameters);
-    }
-
-    public IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
-    {
-        if (!methodDictionary.ContainsKey(methodName))
-            AddToMethodDictionary(methodName);
-
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
-        else
-            yield return (IEnumerator)methodDictionary[methodName].Invoke(this, parameters);
-    }
-
     protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Card).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -194,20 +172,32 @@ public class Card : UndoSource
 
 #region Batteries
 
-    [PunRPC]
-    public void AddBatteries(int playerPosition, int batteries, int logged)
+    public void BatteryRPC(Player player, int number, int logged)
     {
-        this.batteries += batteries;
-        UpdateBatteryText();
-        Log.instance.AddText($"{Manager.instance.playersInOrder[playerPosition].name} adds {batteries} Battery to {this.name}.", logged);
+        Log.instance.AddStepRPC(player, null, this, nameof(ChangeBatteries), null, number, false, logged);
+        Log.instance.Continue();
     }
 
     [PunRPC]
-    public void RemoveBatteries(int playerPosition, int batteries, int logged)
+    void ChangeBatteries(int logged, bool undo)
     {
-        this.batteries = Mathf.Max(0, this.batteries-batteries);
+        NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            this.batteries -= step.numberToRemember;
+        }
+        else if (step.numberToRemember != 0)
+        {
+            int numberToChange = (this.batteries + step.numberToRemember < 0) ? this.batteries : this.batteries + step.numberToRemember;
+            this.batteries += numberToChange;
+            Log.instance.MultiFunction(nameof(Log.instance.ChangeNumber), RpcTarget.All, new object[1] { numberToChange });
+
+            if (numberToChange > 0)
+                Log.instance.AddText($"{step.player} adds {numberToChange} Battery to {this.name}.", logged);
+            else
+                Log.instance.AddText($"{step.player} removes {numberToChange} Battery from {this.name}.", logged);
+        }
         UpdateBatteryText();
-        Log.instance.AddText($"{Manager.instance.playersInOrder[playerPosition].name} removes {batteries} Battery from {this.name}.", logged);
     }
 
     void UpdateBatteryText()
@@ -326,35 +316,35 @@ public class Card : UndoSource
     IEnumerator DrawCards(Player player, int logged, bool undo)
     {
         yield return null;
-        player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[2] {dataFile.numCards, logged});
+        player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[3] {this.pv.ViewID, dataFile.numCards, logged});
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator GainCoins(Player player, int logged, bool undo)
     {
         yield return null;
-        player.CoinRPC(dataFile.numCoins, logged);
+        player.CoinRPC(this, dataFile.numCoins, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator LoseCoins(Player player, int logged, bool undo)
     {
         yield return null;
-        player.CoinRPC(-1*dataFile.numCoins, logged);
+        player.CoinRPC(this, -1*dataFile.numCoins, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator TakeNeg(Player player, int logged, bool undo)
     {
         yield return null;
-        player.CrownRPC(dataFile.numCrowns, logged);
+        player.CrownRPC(this, dataFile.numCrowns, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator RemoveNeg(Player player, int logged, bool undo)
     {
         yield return null;
-        player.CrownRPC(-1*dataFile.numCrowns, logged);
+        player.CrownRPC(this, -1*dataFile.numCrowns, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
@@ -362,7 +352,7 @@ public class Card : UndoSource
     {
         yield return null;
         foreach (Card card in player.listOfHand)
-            player.DiscardRPC(card, logged);
+            player.DiscardRPC(this, card, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
@@ -377,8 +367,8 @@ public class Card : UndoSource
             for (int i = 0; i < dataFile.numCards; i++)
             {
                 Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards - i} more).";
-                yield return player.ChooseCard(player.listOfHand, false);
-                player.DiscardRPC(player.chosenCard, logged);
+                player.ChooseCard(this, player.listOfHand, false, logged);
+                player.DiscardRPC(this, player.chosenCard, logged);
             }
         }
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
@@ -386,6 +376,7 @@ public class Card : UndoSource
 
     IEnumerator OptionalDiscard(Player player, int logged, bool undo)
     {
+        yield return null;
         if (player.listOfHand.Count < dataFile.numCards)
         {
             MultiFunction(nameof(StopInstructions), RpcTarget.All);
@@ -395,7 +386,7 @@ public class Card : UndoSource
             for (int i = 0; i < dataFile.numCards; i++)
             {
                 Manager.instance.instructions.text = $"Discard a card ({dataFile.numCards - i} more)?";
-                yield return player.ChooseCard(player.listOfHand, i == 0);
+                player.ChooseCard(this, player.listOfHand, i == 0, logged);
 
                 if (player.chosenCard == null)
                 {
@@ -404,7 +395,7 @@ public class Card : UndoSource
                 }
                 else
                 {
-                    player.DiscardRPC(player.chosenCard, logged);
+                    player.DiscardRPC(this, player.chosenCard, logged);
                 }
             }
         }
@@ -413,43 +404,47 @@ public class Card : UndoSource
 
     IEnumerator ChooseFromPlay(Player player, int logged, bool undo)
     {
-        yield return player.ChooseCard(player.listOfPlay, false);
+        yield return null;
+        player.ChooseCard(this, player.listOfPlay, false, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator ChooseFromHand(Player player, int logged, bool undo)
     {
-        yield return player.ChooseCard(player.listOfHand, false);
+        yield return null;
+        player.ChooseCard(this, player.listOfHand, false, logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator AddBatteryToOther(Player player, int logged, bool undo)
     {
+        yield return null;
         for (int i = 0; i < dataFile.numBatteries; i++)
         {
             Manager.instance.instructions.text = $"Add batteries to your robots ({dataFile.numBatteries-i} more)";
-            yield return player.ChooseCard(player.listOfPlay.Where(card => card != this).ToList(), false);
+            player.ChooseCard(this, player.listOfPlay.Where(card => card != this).ToList(), false, logged);
             if (player.chosenCard != null)
-                player.chosenCard.MultiFunction(nameof(AddBatteries), RpcTarget.All, new object[3] {player.playerPosition, 1, logged});
+                player.chosenCard.BatteryRPC(player, 1, logged);
         }
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     IEnumerator MoveBattery(Player player, int logged, bool undo)
     {
+        yield return null;
         if (player.listOfPlay.Count >= 2)
         {
             Manager.instance.instructions.text = $"Remove 1 battery from a robot in play.";
-            yield return player.ChooseCard(player.listOfPlay.Where(card => card.batteries > 0).ToList(), false);
+            player.ChooseCard(this, player.listOfPlay.Where(card => card.batteries > 0).ToList(), false, logged);
             Card firstCard = player.chosenCard;
             if (firstCard != null)
             {
-                firstCard.MultiFunction(nameof(RemoveBatteries), RpcTarget.All, new object[3] { player.playerPosition, 1, logged });
+                firstCard.BatteryRPC(player, -1, logged);
 
                 Manager.instance.instructions.text = $"Add 1 battery to a robot in play.";
-                yield return player.ChooseCard(player.listOfPlay.Where(card => card != this).ToList(), false);
+                player.ChooseCard(this, player.listOfPlay.Where(card => card != this).ToList(), false, logged);
                 if (player.chosenCard != null)
-                    player.chosenCard.MultiFunction(nameof(AddBatteries), RpcTarget.All, new object[3] { player.playerPosition, 1, logged });
+                    player.chosenCard.BatteryRPC(player, 1, logged);
             }
         }
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
@@ -457,7 +452,8 @@ public class Card : UndoSource
 
     IEnumerator PlayCard(Player player, int logged, bool undo)
     {
-        yield return player.ChooseCardToPlay(player.listOfHand.Where(card => card.dataFile.coinCost <= player.coins).ToList(), logged);
+        yield return null;
+        player.ChooseCardToPlay(this, player.listOfHand.Where(card => card.dataFile.coinCost <= player.coins).ToList(), logged);
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 

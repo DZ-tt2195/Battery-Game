@@ -10,40 +10,26 @@ using System.Reflection;
 using System;
 
 [Serializable]
-public class UndoProcess
-{
-    public Player canAskUndo;
-    public List<UndoStep> listOfSteps = new();
-    public int addedLogLines = 0;
-
-    public UndoProcess(int playerPosition)
-    {
-        this.canAskUndo = Manager.instance.playersInOrder[playerPosition];
-    }
-}
-
-[Serializable]
-public class UndoStep
+public class NextStep
 {
     public UndoSource source;
-    public Player user;
+    public Player player;
     public string instruction;
     public List<Card> cardsToRemember = new();
     public int numberToRemember { get; internal set; }
     public bool boolToRemember { get; internal set; }
+    public Player canUndoThis;
+    public int logged;
 
-    public UndoStep(int playerPosition, int sourceID, string instruction)
+    internal NextStep(Player player, Player canUndoThis, UndoSource source, string instruction, List<Card> cardsToRemember, int numberToRemember, bool boolToRemember, int logged)
     {
-        this.user = Manager.instance.playersInOrder[playerPosition];
-        this.source = PhotonView.Find(sourceID).GetComponent<UndoSource>();
-        this.instruction = instruction;
-    }
-
-    public UndoStep(Player user, UndoSource source, string instruction)
-    {
-        this.user = user;
+        this.player = player;
+        this.canUndoThis = canUndoThis;
         this.source = source;
         this.instruction = instruction;
+        this.numberToRemember = numberToRemember;
+        this.boolToRemember = boolToRemember;
+        this.logged = logged;
     }
 }
 
@@ -65,7 +51,8 @@ public class Log : MonoBehaviour
     public Dictionary<string, MethodInfo> dictionary = new();
 
     [Foldout("Undo", true)]
-    List<UndoProcess> historyStack = new();
+    List<NextStep> historyStack = new();
+    int currentStep = 0;
     List<Button> undosInLog = new();
     bool nextUndoBar = false;
     Button undoButton;
@@ -141,9 +128,10 @@ public class Log : MonoBehaviour
         if (indent < 0)
             return;
 
+        /*
         if (historyStack.Count > 0)
             historyStack[^1].addedLogLines++;
-
+        */
         LogText newText = Instantiate(textBoxClone, RT.transform);
         newText.textBox.text = "";
         for (int i = 0; i < indent; i++)
@@ -171,12 +159,27 @@ public class Log : MonoBehaviour
 
     #endregion
 
+#region Steps
+
+    public NextStep GetCurrentStep()
+    {
+        return historyStack[currentStep];
+    }
+
+    [PunRPC]
+    public void Continue()
+    {
+        currentStep++;
+    }
+
+    #endregion
+
 #region Undos
 
     void DisplayUndoBar(bool on)
     {
         undosInLog.RemoveAll(item => item == null);
-        for (int i = 0; i < undosInLog.Count; i++)
+        for (int i = 1; i <= undosInLog.Count; i++)
         {
             Button nextButton = undosInLog[i];
             nextButton.onClick.RemoveAllListeners();
@@ -194,92 +197,72 @@ public class Log : MonoBehaviour
         undoButton.onClick.AddListener(() => DisplayUndoBar(!on));
     }
 
-    [PunRPC]
-    public void AddUndoPoint(int playerPosition)
-    {
-        historyStack.Add(new(playerPosition));
-        instance.nextUndoBar = true;
-    }
-
-    public void AddUndoStep(Player user, UndoSource source, string instruction)
+    public void AddStepRPC(Player player, Player canUndo, UndoSource source, string instruction, List<Card> cardsToRemember, int numberToRemember, bool boolToRemember, int logged)
     {
         if (PhotonNetwork.IsConnected)
         {
-            pv.RPC(nameof(AddStepToStack), RpcTarget.All, new object[3] { user.pv.ViewID, source.pv.ViewID, instruction });
+            int[] cardIDs = new int[cardsToRemember.Count];
+            for (int i = 0; i < cardsToRemember.Count; i++)
+                cardIDs[i] = cardsToRemember[i].pv.ViewID;
+            MultiFunction(nameof(AddStep), RpcTarget.All, new object[8]
+            { player.playerPosition, (canUndo == null) ? -1 : canUndo.playerPosition,
+                source.pv.ViewID, instruction, cardIDs, numberToRemember, boolToRemember, logged }); 
         }
         else
         {
-            AddStepToStack(user, source, instruction);
+            AddStep(player, canUndo, source, instruction,
+                cardsToRemember, numberToRemember, boolToRemember, logged);
         }
     }
 
     [PunRPC]
-    void AddStepToStack(int userID, int sourceID, string instruction)
+    void AddStep(int playerPosition, int undoPosition, int sourceID, string instruction, int[] cardIDs, int numberToRemember, bool boolToRemember, int logged)
     {
-        AddStepToStack(PhotonView.Find(userID).GetComponent<Player>(), PhotonView.Find(sourceID).GetComponent<UndoSource>(), instruction);
+        List<Card> listOfCards = new();
+        foreach (int ID in cardIDs)
+            listOfCards.Add(PhotonView.Find(ID).GetComponent<Card>());
+
+        AddStep(Manager.instance.playersInOrder[playerPosition],
+            (undoPosition == -1) ? null : Manager.instance.playersInOrder[undoPosition],
+            PhotonView.Find(sourceID).GetComponent<UndoSource>(), instruction,
+            listOfCards, numberToRemember, boolToRemember, logged);     
     }
 
-    void AddStepToStack(Player user, UndoSource source, string instruction)
+    void AddStep(Player player, Player canUndo, UndoSource source, string instruction, List<Card> cardsToRemember, int numberToRemember, bool boolToRemember, int logged)
     {
-        UndoProcess currentProcess = historyStack[^1];
-
-        if (currentProcess.listOfSteps.Count == 0 || currentProcess.listOfSteps[0].instruction != "")
-        {
-            currentProcess.listOfSteps.Insert(0, new(user, source, instruction));
-        }
-        else
-        {
-            currentProcess.listOfSteps[0] = new(user, source, instruction);
-        }
-    }
-
-    [PunRPC]
-    public void AddNumber(int number)
-    {
-        UndoStep currentStep = historyStack[^1].listOfSteps[0];
-        currentStep.numberToRemember = number;
-    }
-
-    [PunRPC]
-    public void AddBool(bool boolean)
-    {
-        UndoStep currentStep = historyStack[^1].listOfSteps[0];
-        currentStep.boolToRemember = boolean;
-    }
-
-    public void AddCardToUndo(Card card)
-    {
-        if (PhotonNetwork.IsConnected)
-        {
-            MultiFunction(nameof(AddCardToList), RpcTarget.All, new object[1] { card.pv.ViewID });
-        }
-        else
-        {
-            AddCardToList(card);
-        }
-    }
-
-    [PunRPC]
-    void AddCardToList(int ID)
-    {
-        AddCardToList(PhotonView.Find(ID).GetComponent<Card>());
-    }
-
-    void AddCardToList(Card card)
-    {
-        UndoStep currentStep = historyStack[^1].listOfSteps[0];
-        currentStep.cardsToRemember.Add(card);
-    }
-
-    public UndoStep GetNewStep()
-    {
-        return historyStack[^1].listOfSteps[0];
+        historyStack.Insert(currentStep+1, new(player, canUndo, source, instruction, cardsToRemember, numberToRemember, boolToRemember, logged));
+        if (canUndo != null)
+            nextUndoBar = true;
     }
 
     [PunRPC]
     void UndoAmount(int amount)
     {
         DisplayUndoBar(false);
+        Popup[] allPopups = FindObjectsOfType<Popup>();
+        foreach (Popup popup in allPopups)
+            Destroy(popup.gameObject);
+
+        int tracker = 0;
+        while (tracker < amount)
+        {
+            NextStep next = historyStack[currentStep];
+            if (next.canUndoThis != null)
+                tracker++;
+
+            if (tracker == amount)
+            {
+                break;
+            }
+            else
+            {
+                next.source.UndoCommand(next);
+                historyStack.RemoveAt(currentStep);
+                currentStep--;
+            }
+        }
+
+        /*
         int linesToDelete = 0;
         int currentStackCount = historyStack.Count - 1;
 
@@ -304,9 +287,15 @@ public class Log : MonoBehaviour
             Destroy(RT.transform.GetChild(RT.transform.childCount - i).gameObject);
         }
 
-        lastStep.source.methodDictionary[lastStep.instruction].Invoke(lastStep.source, new object[2] {-1, false});
+        //lastStep.source.methodDictionary[lastStep.instruction].Invoke(lastStep.source, new object[2] {-1, false});
+        */
+    }
+
+    [PunRPC]
+    public void ChangeNumber(int newNumber)
+    {
+        historyStack[currentStep].numberToRemember = newNumber;
     }
 
     #endregion
-
 }
