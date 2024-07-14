@@ -9,7 +9,6 @@ using MyBox;
 public class UndoSource : MonoBehaviour
 {
     public Dictionary<string, MethodInfo> methodDictionary = new();
-    [SerializeField] protected List<string> executeInstructions = new();
     [ReadOnly] public PhotonView pv;
 
     public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
@@ -17,21 +16,21 @@ public class UndoSource : MonoBehaviour
         if (!methodDictionary.ContainsKey(methodName))
             AddToMethodDictionary(methodName);
 
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
-        else
-            methodDictionary[methodName].Invoke(this, parameters);
-    }
-
-    public IEnumerator MultiEnumerator(string methodName, RpcTarget affects, object[] parameters = null)
-    {
-        if (!methodDictionary.ContainsKey(methodName))
-            AddToMethodDictionary(methodName);
-
-        if (PhotonNetwork.IsConnected)
-            pv.RPC(methodDictionary[methodName].Name, affects, parameters);
-        else
-            yield return (IEnumerator)methodDictionary[methodName].Invoke(this, parameters);
+        MethodInfo info = methodDictionary[methodName];
+        if (info.ReturnType == typeof(IEnumerator))
+        {
+            if (PhotonNetwork.IsConnected)
+                pv.RPC(info.Name, affects, parameters);
+            else
+                StartCoroutine((IEnumerator)info.Invoke(this, parameters));
+        }
+        else if (info.ReturnType == typeof(void))
+        {
+            if (PhotonNetwork.IsConnected)
+                pv.RPC(info.Name, affects, parameters);
+            else
+                info.Invoke(this, parameters);
+        }
     }
 
     public void UndoCommand(NextStep step)

@@ -17,7 +17,6 @@ public class ConnectToLobby : MonoBehaviourPunCallbacks
 
     void LocalPlay()
     {
-        Debug.Log("press local play");
         SceneManager.LoadScene("2. Game");
     }
 

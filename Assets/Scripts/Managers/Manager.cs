@@ -31,11 +31,11 @@ public class Manager : UndoSource
     [ReadOnly] public bool gameOn = false;
 
     [Foldout("Lists", true)]
-    [ReadOnly] public int turnNumber;
     [ReadOnly] public List<Player> playersInOrder = new();
+    [ReadOnly] public List<Card> cardIDs = new();
     [ReadOnly] public List<Card> listOfActions = new();
     [ReadOnly] public List<Card> listOfEvents = new();
-    [ReadOnly] public Dictionary<string, MethodInfo> dictionary = new();
+    [ReadOnly] public int turnNumber { get; private set; }
 
     [Foldout("Ending", true)]
     [SerializeField] Transform endScreen;
@@ -56,7 +56,7 @@ public class Manager : UndoSource
     {
         MethodInfo method = typeof(Manager).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
-            dictionary.Add(methodName, method);
+            methodDictionary.Add(methodName, method);
     }
 
     private void FixedUpdate()
@@ -84,7 +84,7 @@ public class Manager : UndoSource
             GetPlayers();
             CreateRobots();
             CreateActions();
-            StartCoroutine(PlayUntilFinish());
+            PlayUntilFinish();
         }
     }
 
@@ -103,7 +103,7 @@ public class Manager : UndoSource
 
             CreateRobots();
             CreateActions();
-            StartCoroutine(PlayUntilFinish());
+            PlayUntilFinish();
         }
     }
 
@@ -138,20 +138,20 @@ public class Manager : UndoSource
                 if (PhotonNetwork.IsConnected)
                 {
                     nextCard = PhotonNetwork.Instantiate(CarryVariables.instance.robotPrefab.name, new Vector3(-10000, -10000), new Quaternion()).GetComponent<Card>();
-                    nextCard.pv.RPC("GetRobotFile", RpcTarget.All, i);
+                    nextCard.pv.RPC("GetRobotFile", RpcTarget.All, i, cardIDs.Count);
                 }
                 else
                 {
                     nextCard = Instantiate(CarryVariables.instance.robotPrefab, new Vector3(-10000, -10000), new Quaternion());
-                    nextCard.GetRobotFile(i);
+                    nextCard.GetRobotFile(i, cardIDs.Count);
                 }
             }
         }
         deck.Shuffle();
         foreach (Player player in playersInOrder)
         {
-            player.MultiFunction(nameof(player.RequestDraw), RpcTarget.MasterClient, new object[2] { 2, 0 });
-            player.CoinRPC(this, 4, -1);
+            player.MultiFunction(nameof(Player.RequestDraw), RpcTarget.MasterClient, new object[2] { 4, 0 });
+            player.CoinRPC(this, 4, 0);
         }
     }
 
@@ -163,12 +163,12 @@ public class Manager : UndoSource
             if (PhotonNetwork.IsConnected)
             {
                 nextCard = PhotonNetwork.Instantiate(CarryVariables.instance.actionPrefab.name, new Vector3(-10000, -10000), new Quaternion()).GetComponent<Card>();
-                nextCard.pv.RPC("GetActionFile", RpcTarget.All, i);
+                nextCard.pv.RPC("GetActionFile", RpcTarget.All, i, cardIDs.Count);
             }
             else
             {
                 nextCard = Instantiate(CarryVariables.instance.actionPrefab, new Vector3(-10000, -10000), new Quaternion());
-                nextCard.GetActionFile(i);
+                nextCard.GetActionFile(i, cardIDs.Count);
             }
         }
     }
@@ -177,30 +177,22 @@ public class Manager : UndoSource
 
 #region Gameplay
 
-    IEnumerator PlayUntilFinish()
+    void PlayUntilFinish()
     {
         gameOn = true;
-
-        for (int j = 1; j <= 10; j++)
-        {
-            MultiFunction(nameof(UpdateTurnNumber), RpcTarget.All, new object[1] { j });
-            foreach (Player player in playersInOrder)
-            {
-                player.TakeTurnRPC(j);
-                while (player.myTurn)
-                    yield return null;
-            }
-        }
-
-        MultiFunction(nameof(DisplayEnding), RpcTarget.All, new object[1] { -1 });
+        Log.instance.AddStepRPC(1, playersInOrder[0], null, playersInOrder[0], nameof(Player.StartTurn), new object[0], 0);
+        Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
     [PunRPC]
-    void UpdateTurnNumber(int number)
+    public void UpdateTurnNumber(int number)
     {
-        turnNumber = number;
-        Log.instance.AddText("");
-        Log.instance.AddText($"ROUND {turnNumber}");
+        if (turnNumber < number)
+        {
+            turnNumber = number;
+            Log.instance.AddText("");
+            Log.instance.AddText($"ROUND {turnNumber}");
+        }
     }
 
     #endregion
