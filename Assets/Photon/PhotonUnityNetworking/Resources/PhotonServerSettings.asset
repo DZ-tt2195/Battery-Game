@@ -82,6 +82,13 @@ MonoBehaviour:
   - ChangeBatteries
   - ChangeNumber
   - StartTurn
+  - ChooseAction
+  - ChooseCardFromList
+  - ChooseCardFromPopup
+  - PlayChosenCard
+  - AddInstructions
+  - NextStep
+  - ResolveChosenCard
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0

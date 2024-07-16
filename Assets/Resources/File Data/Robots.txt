@@ -42,6 +42,34 @@
       "0"
     ],
     [
+      "Bandit",
+      "Each other player loses 1 Coin.",
+      "7",
+      "1",
+      "4",
+      "Others",
+      "LoseCoins",
+      "",
+      "1",
+      "",
+      "",
+      "0"
+    ],
+    [
+      "Warehouse",
+      "Draw 1 Card, discard 1 Card.",
+      "6",
+      "1",
+      "5",
+      "You",
+      "DrawCards/MandatoryDiscard",
+      "1",
+      "",
+      "",
+      "",
+      "0"
+    ],
+    [
       "Big Card Drawer",
       "Draw 3 Card.",
       "10",
@@ -51,20 +79,6 @@
       "DrawCards",
       "3",
       "",
-      "",
-      "",
-      "0"
-    ],
-    [
-      "Bandit",
-      "Each other player loses 2 Coin.",
-      "6",
-      "2",
-      "2",
-      "Others",
-      "LoseCoins",
-      "",
-      "2",
       "",
       "",
       "0"
@@ -84,20 +98,6 @@
       "0"
     ],
     [
-      "Warehouse",
-      "Draw 1 Card, discard 1 Card.",
-      "6",
-      "1",
-      "5",
-      "You",
-      "DrawCards/MandatoryDiscard",
-      "1",
-      "",
-      "",
-      "",
-      "0"
-    ],
-    [
       "Delivery Drone",
       "Move 1 Battery from 1 Robot to another.",
       "4",
@@ -109,6 +109,20 @@
       "",
       "",
       "1",
+      "0"
+    ],
+    [
+      "Construction Robot",
+      "You may play 1 Card.",
+      "8",
+      "3",
+      "0",
+      "You",
+      "PlayCard",
+      "",
+      "",
+      "",
+      "",
       "0"
     ]
   ]

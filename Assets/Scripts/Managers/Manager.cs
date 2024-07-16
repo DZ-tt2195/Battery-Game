@@ -80,12 +80,16 @@ public class Manager : UndoSource
         {
             Player solitairePlayer = Instantiate(CarryVariables.instance.playerPrefab, new Vector3(-10000, -10000, 0), new Quaternion());
             solitairePlayer.name = "Solitaire";
-
-            GetPlayers();
-            CreateRobots();
-            CreateActions();
-            PlayUntilFinish();
+            Invoke(nameof(ProperSetup), 0.5f);
         }
+    }
+
+    void ProperSetup()
+    {
+        GetPlayers();
+        CreateRobots();
+        CreateActions();
+        PlayUntilFinish();
     }
 
     IEnumerator WaitForPlayers()
@@ -98,12 +102,7 @@ public class Manager : UndoSource
 
         if (PhotonNetwork.IsMasterClient)
         {
-            yield return new WaitForSeconds(0.5f);
-            GetPlayers();
-
-            CreateRobots();
-            CreateActions();
-            PlayUntilFinish();
+            Invoke(nameof(ProperSetup), 0.5f);
         }
     }
 
