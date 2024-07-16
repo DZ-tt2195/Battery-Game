@@ -383,32 +383,35 @@ public class Card : UndoSource
 
 #region Steps
 
+    [PunRPC]
     void DrawCards(int logged, bool undo)
     {
+        NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
 
         }
-        else
+        else if (step.player.InControl())
         {
-            NextStep step = Log.instance.GetCurrentStep();
             step.player.MultiFunction(nameof(Player.RequestDraw), RpcTarget.MasterClient, new object[2] { dataFile.numCards, logged });
         }
     }
 
+    [PunRPC]
     void GainCoins(int logged, bool undo)
     {
+        NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
 
         }
-        else
+        else if (step.player.InControl())
         {
-            NextStep step = Log.instance.GetCurrentStep();
             step.player.CoinRPC(this, dataFile.numCoins, logged);
         }
     }
 
+    [PunRPC]
     IEnumerator LoseCoins(Player player, int logged, bool undo)
     {
         yield return null;
@@ -416,6 +419,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator TakeNeg(Player player, int logged, bool undo)
     {
         yield return null;
@@ -423,6 +427,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator RemoveNeg(Player player, int logged, bool undo)
     {
         yield return null;
@@ -430,6 +435,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator DiscardHand(Player player, int logged, bool undo)
     {
         yield return null;
@@ -438,6 +444,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator MandatoryDiscard(Player player, int logged, bool undo)
     {
         if (player.listOfHand.Count <= dataFile.numCards)
@@ -456,6 +463,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator OptionalDiscard(Player player, int logged, bool undo)
     {
         yield return null;
@@ -484,6 +492,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator ChooseFromPlay(Player player, int logged, bool undo)
     {
         yield return null;
@@ -491,6 +500,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator ChooseFromHand(Player player, int logged, bool undo)
     {
         yield return null;
@@ -498,6 +508,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator AddBatteryToOther(Player player, int logged, bool undo)
     {
         yield return null;
@@ -511,6 +522,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator MoveBattery(Player player, int logged, bool undo)
     {
         yield return null;
@@ -532,6 +544,7 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator PlayCard(Player player, int logged, bool undo)
     {
         yield return null;
@@ -606,18 +619,21 @@ public class Card : UndoSource
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
+    [PunRPC]
     IEnumerator SetToHandSize(Player player, int logged, bool undo)
     {
         yield return null;
         MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.listOfHand.Count });
     }
 
+    [PunRPC]
     IEnumerator SetToNegCrowns(Player player, int logged, bool undo)
     {
         yield return null;
         MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.negCrowns });
     }
 
+    [PunRPC]
     IEnumerator SetToCoins(Player player, int logged, bool undo)
     {
         yield return null;

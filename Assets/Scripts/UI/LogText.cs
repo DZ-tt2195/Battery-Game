@@ -10,6 +10,7 @@ public class LogText : MonoBehaviour
     public TMP_Text textBox;
     public Image undoBar;
     public Button button;
+    public Player canUndoThis;
 
     private void Awake()
     {

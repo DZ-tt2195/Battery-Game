@@ -73,9 +73,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d20f735eb5c8c4fa2ae33af5f817b27a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  junkPrefab: {fileID: 1697648877009758180, guid: a669408eef67e48a287e8b14ef4d79d1, type: 3}
-  playerButtonPrefab: {fileID: 388227353424467476, guid: a63e9538af914433c9e162e45c41e7af, type: 3}
   pv: {fileID: 0}
+  playerButtonPrefab: {fileID: 388227353424467476, guid: a63e9538af914433c9e162e45c41e7af, type: 3}
   coins: 0
   negCrowns: 0
   playerPosition: 0
@@ -83,11 +82,9 @@ MonoBehaviour:
   cardhand: {fileID: 1525575952823927673}
   listOfPlay: []
   cardplay: {fileID: 5339597759091133530}
-  cardsPlayed: []
   choice: 0
   chosenCard: {fileID: 0}
   lastUsedAction: {fileID: 0}
-  ignoreInstructions: 0
 --- !u!1 &6326756469621649633
 GameObject:
   m_ObjectHideFlags: 0

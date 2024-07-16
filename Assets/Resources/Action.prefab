@@ -206,6 +206,7 @@ MonoBehaviour:
   cg: {fileID: 0}
   background: {fileID: 4155640907989011003}
   border: {fileID: 8607025200229986181}
+  batteryDisplay: {fileID: 0}
 --- !u!1 &2326203752505220632
 GameObject:
   m_ObjectHideFlags: 0

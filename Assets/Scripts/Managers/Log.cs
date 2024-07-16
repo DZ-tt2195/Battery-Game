@@ -51,7 +51,7 @@ public class Log : MonoBehaviour
     [ReadOnly] [SerializeField] List<NextStep> historyStack = new();
     [ReadOnly][SerializeField] int currentStep = 0;
     [ReadOnly][SerializeField] List<LogText> undosInLog = new();
-    bool nextUndoBar = false;
+    Player nextUndoBar = null;
     Button undoButton;
 
     #endregion
@@ -67,8 +67,9 @@ public class Log : MonoBehaviour
         scroll = this.transform.GetChild(1).GetComponent<Scrollbar>();
 
         startingHeight = RT.sizeDelta.y;
-        undoButton.onClick.AddListener(() => DisplayUndoBar(true));
-        AddStepRPC(0, null, null, null, "", null, -1);
+        undoButton.onClick.AddListener(() => DisplayUndoBar());
+        NextStep newStep = new(null, null, null, "", new object[0], -1);
+        historyStack.Add(newStep);
     }
 
     public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
@@ -134,9 +135,10 @@ public class Log : MonoBehaviour
         newText.textBox.text += string.IsNullOrEmpty(logText) ? "" : char.ToUpper(logText[0]) + logText[1..];
 
         newText.textBox.text = KeywordTooltip.instance.EditText(newText.textBox.text);
-        if (nextUndoBar)
+        if (nextUndoBar != null)
         {
-            nextUndoBar = false;
+            newText.canUndoThis = nextUndoBar;
+            nextUndoBar = null;
             undosInLog.Insert(0, newText);
         }
 
@@ -177,7 +179,7 @@ public class Log : MonoBehaviour
     {
         if (PhotonNetwork.IsConnected)
         {
-            pv.RPC(nameof(AddStep), RpcTarget.All, insertion, player.playerPosition, canUndo.playerPosition, source.pv.ViewID, instruction, infoToRemember, logged);
+            pv.RPC(nameof(AddStep), RpcTarget.All, insertion, player == null ? -1 : player.playerPosition, canUndo == null ? -1 : canUndo.playerPosition, source == null ? -1 : source.pv.ViewID, instruction, infoToRemember, logged);
         }
         else
         {
@@ -188,14 +190,14 @@ public class Log : MonoBehaviour
     [PunRPC]
     void AddStep(int insertion, int playerPosition, int canUndo, int source, string instruction, object[] infoToRemember, int logged)
     {
-        AddStep(insertion, Manager.instance.playersInOrder[playerPosition], canUndo < 0 ? null : Manager.instance.playersInOrder[canUndo], PhotonView.Find(source).GetComponent<UndoSource>(), instruction, infoToRemember, logged);
+        AddStep(insertion, playerPosition < 0 ? null : Manager.instance.playersInOrder[playerPosition], canUndo < 0 ? null : Manager.instance.playersInOrder[canUndo], source < 0 ? null : PhotonView.Find(source).GetComponent<UndoSource>(), instruction, infoToRemember, logged);
     }
 
     void AddStep(int insertion, Player player, Player canUndo, UndoSource source, string instruction, object[] infoToRemember, int logged)
     {
         NextStep newStep = new(player, canUndo, source, instruction, infoToRemember, logged);
         if (canUndo != null)
-            nextUndoBar = true;
+            nextUndoBar = canUndo;
 
         try
         {
@@ -211,34 +213,46 @@ public class Log : MonoBehaviour
 
 #region Undos
 
-    void DisplayUndoBar(bool on)
+    void DisplayUndoBar()
     {
-        undosInLog.RemoveAll(item => item == null);
-        for (int i = 0; i < undosInLog.Count; i++)
+        if (undosInLog.Count > 0)
         {
-            LogText next = undosInLog[i];
-            next.button.onClick.RemoveAllListeners();
-            next.button.interactable = on;
-            next.undoBar.gameObject.SetActive(on);
+            bool flash = undosInLog[^1].undoBar.gameObject.activeSelf;
 
-            if (on)
+            undosInLog.RemoveAll(item => item == null);
+            for (int i = 0; i < undosInLog.Count; i++)
             {
-                int number = i;
-                next.button.onClick.AddListener(() => MultiFunction(nameof(UndoAmount), RpcTarget.All, new object[2] { number, next.transform.GetSiblingIndex() }));
+                LogText next = undosInLog[i];
+                next.button.onClick.RemoveAllListeners();
+                next.button.interactable = flash;
+                next.undoBar.gameObject.SetActive(false);
+
+                if (flash && next.canUndoThis.InControl())
+                {
+                    next.undoBar.gameObject.SetActive(flash);
+                    int number = i;
+                    next.button.onClick.AddListener(() => MultiFunction(nameof(UndoAmount), RpcTarget.All, new object[2] { number, next.transform.GetSiblingIndex() }));
+                }
             }
         }
-
-        undoButton.onClick.RemoveAllListeners();
-        undoButton.onClick.AddListener(() => DisplayUndoBar(!on));
     }
 
     [PunRPC]
     void UndoAmount(int amount, int logDelete)
     {
-        DisplayUndoBar(false);
+        StartCoroutine(CarryVariables.instance.TransitionImage(1f));
+        undosInLog[^1].undoBar.gameObject.SetActive(false);
+        DisplayUndoBar();
+
         Popup[] allPopups = FindObjectsOfType<Popup>();
         foreach (Popup popup in allPopups)
             Destroy(popup.gameObject);
+
+        foreach (Card card in Manager.instance.cardIDs)
+        {
+            card.button.interactable = false;
+            card.button.onClick.RemoveAllListeners();
+        }
 
         Debug.Log($"{RT.transform.childCount}, {logDelete}");
         for (int i = RT.transform.childCount; i>logDelete; i--)
@@ -247,6 +261,7 @@ public class Log : MonoBehaviour
         }
 
         int tracker = -1;
+
         while (tracker < amount)
         {
             NextStep next = historyStack[currentStep];
@@ -258,7 +273,7 @@ public class Log : MonoBehaviour
             if (tracker == amount)
             {
                 currentStep--;
-                nextUndoBar = true;
+                nextUndoBar = next.canUndoThis;
                 Continue();
                 break;
             }

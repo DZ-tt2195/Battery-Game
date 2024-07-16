@@ -107,7 +107,7 @@ public class Player : UndoSource
         storePlayers.localPosition = new Vector3(-2500 * this.playerPosition, 0, 0);
     }
 
-    bool InControl()
+    public bool InControl()
     {
         if (PhotonNetwork.IsConnected)
             return this.pv.AmOwner;

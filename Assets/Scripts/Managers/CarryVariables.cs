@@ -29,6 +29,7 @@ public class CarryVariables : MonoBehaviour
     [SerializeField] Transform permanentCanvas;
     [ReadOnly] public Dictionary<string, MethodInfo> dictionary = new();
     public Sprite faceDownSprite;
+    [SerializeField] Image transitionImage;
 
     private void Awake()
     {
@@ -85,5 +86,22 @@ public class CarryVariables : MonoBehaviour
         rightClickBackground.gameObject.SetActive(true);
         cg.alpha = alpha;
         rightClickCard.FillInCards(dataFile, color);
+    }
+
+    public IEnumerator TransitionImage(float time)
+    {
+        float elapsedTime = 0f;
+        transitionImage.SetAlpha(1);
+        transitionImage.gameObject.SetActive(true);
+
+        while (elapsedTime < time)
+        {
+            transitionImage.SetAlpha(1-(elapsedTime / time));
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        transitionImage.SetAlpha(0);
+        transitionImage.gameObject.SetActive(false);
     }
 }
