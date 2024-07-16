@@ -9,12 +9,14 @@ public class LogText : MonoBehaviour
 {
     public TMP_Text textBox;
     public Image undoBar;
+    public Button button;
 
     private void Awake()
     {
         textBox = GetComponent<TMP_Text>();
-        undoBar = this.transform.GetChild(0).GetComponent<Image>();
+        undoBar = this.transform.GetComponentInChildren<Image>();
         undoBar.gameObject.SetActive(false);
+        button = GetComponent<Button>();
     }
 
     private void FixedUpdate()

@@ -33,21 +33,6 @@ public class UndoSource : MonoBehaviour
         }
     }
 
-    public void UndoCommand(NextStep step)
-    {
-        if (!methodDictionary.ContainsKey(step.instruction))
-            AddToMethodDictionary(step.instruction);
-
-        try
-        {
-            StartCoroutine((IEnumerator)methodDictionary[step.instruction].Invoke(this, new object[2] { this, true }));
-        }
-        catch
-        {
-            methodDictionary[step.instruction].Invoke(this, new object[2] { this, true });
-        }
-    }
-
     protected virtual void AddToMethodDictionary(string methodName)
     {
     }

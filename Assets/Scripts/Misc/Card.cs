@@ -225,42 +225,48 @@ public class Card : UndoSource
     [PunRPC]
     public void AddInstructions(int logged, bool undo)
     {
-        listOfMethods.Clear();
-        methodTracker = 0;
-        runNextMethod = true;
-
-        NextStep step = Log.instance.GetCurrentStep();
-        Player you = step.player;
-
-        for (int i = 0; i < dataFile.playInstructions.Length; i++)
+        if (undo)
         {
-            string[] listOfSmallInstructions = DownloadSheets.instance.SpliceString(dataFile.playInstructions[i], '/');
+        }
+        else
+        {
+            listOfMethods.Clear();
+            methodTracker = 0;
+            runNextMethod = true;
 
-            if (dataFile.whoToTarget[i] == PlayerTarget.You)
+            NextStep step = Log.instance.GetCurrentStep();
+            Player you = step.player;
+
+            for (int i = 0; i < dataFile.playInstructions.Length; i++)
             {
-                foreach (string methodName in listOfSmallInstructions)
-                    listOfMethods.Add(new(you, methodName));
-            }
-            else
-            {
-                int playerTracker = you.playerPosition;
-                for (int j = 0; j < Manager.instance.playersInOrder.Count; j++)
+                string[] listOfSmallInstructions = DownloadSheets.instance.SpliceString(dataFile.playInstructions[i], '/');
+
+                if (dataFile.whoToTarget[i] == PlayerTarget.You)
                 {
-                    if (!(dataFile.whoToTarget[i] == PlayerTarget.Others && you == Manager.instance.playersInOrder[playerTracker]))
+                    foreach (string methodName in listOfSmallInstructions)
+                        listOfMethods.Add(new(you, methodName));
+                }
+                else
+                {
+                    int playerTracker = you.playerPosition;
+                    for (int j = 0; j < Manager.instance.playersInOrder.Count; j++)
                     {
-                        foreach (string methodName in listOfSmallInstructions)
-                            listOfMethods.Add(new(Manager.instance.playersInOrder[playerTracker], methodName));
+                        if (!(dataFile.whoToTarget[i] == PlayerTarget.Others && you == Manager.instance.playersInOrder[playerTracker]))
+                        {
+                            foreach (string methodName in listOfSmallInstructions)
+                                listOfMethods.Add(new(Manager.instance.playersInOrder[playerTracker], methodName));
+                        }
+                        playerTracker = (playerTracker + 1) % Manager.instance.playersInOrder.Count;
                     }
-                    playerTracker = (playerTracker + 1) % Manager.instance.playersInOrder.Count;
                 }
             }
-        }
 
-        if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
-        {
-            Log.instance.AddStepRPC(1, you, null, this,
-                nameof(NextStep), new object[0], logged);
-            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+            if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
+            {
+                Log.instance.AddStepRPC(1, you, null, this,
+                    nameof(NextStep), new object[0], logged);
+                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+            }
         }
     }
 

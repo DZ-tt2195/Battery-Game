@@ -447,7 +447,8 @@ public class Player : UndoSource
             else
             {
                 Card card = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
-                Log.instance.AddStepRPC(1, this, this, card, nameof(Card.AddInstructions), new object[0], logged);
+                Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} resolves {card.name}.", logged });
+                Log.instance.AddStepRPC(1, this, null, card, nameof(Card.AddInstructions), new object[0], logged);
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
         }
