@@ -55,8 +55,15 @@ public class Manager : UndoSource
     protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Manager).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
-            methodDictionary.Add(methodName, method);
+        try
+        {
+            if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
+                methodDictionary.Add(methodName, method);
+        }
+        catch
+        {
+            Debug.LogError(methodName);
+        }
     }
 
     private void FixedUpdate()
@@ -150,7 +157,7 @@ public class Manager : UndoSource
         foreach (Player player in playersInOrder)
         {
             player.MultiFunction(nameof(Player.RequestDraw), RpcTarget.MasterClient, new object[2] { 4, 0 });
-            player.CoinRPC(this, 4, 0);
+            player.CoinRPC(4, 0);
         }
     }
 
@@ -188,10 +195,10 @@ public class Manager : UndoSource
     {
         if (turnNumber < number)
         {
-            turnNumber = number;
             Log.instance.AddText("");
-            Log.instance.AddText($"ROUND {turnNumber}");
+            Log.instance.AddText($"ROUND {number}");
         }
+        turnNumber = number;
     }
 
     #endregion

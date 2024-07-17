@@ -40,9 +40,10 @@ public class Card : UndoSource
         [SerializeField] TMP_Text batteryDisplay;
 
     [Foldout("Methods", true)]
-        bool runNextMethod;
         List<PlayerMethod> listOfMethods = new();
-        int methodTracker;     
+        int methodTracker;
+        Player originalPlayer;
+        public bool runNextMethod { get; private set; }
 
     #endregion
 
@@ -58,8 +59,15 @@ public class Card : UndoSource
     protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Card).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
-            methodDictionary.Add(methodName, method);
+        try
+        {
+            if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
+                methodDictionary.Add(methodName, method);
+        }
+        catch
+        {
+            Debug.LogError(methodName);
+        }
     }
 
     [PunRPC]
@@ -200,14 +208,14 @@ public class Card : UndoSource
         {
             this.batteries -= amount;
         }
-        else if ((int)step.infoToRemember[0] != 0)
+        else if (amount != 0)
         {
             this.batteries += amount;
 
             if (amount > 0)
-                Log.instance.AddText($"{step.player} adds {amount} Battery to {this.name}.", logged);
+                Log.instance.AddText($"{step.player.name} adds {Mathf.Abs(amount)} Battery to {this.name}.", logged);
             else
-                Log.instance.AddText($"{step.player} removes {amount} Battery from {this.name}.", logged);
+                Log.instance.AddText($"{step.player.name} removes {Mathf.Abs(amount)} Battery from {this.name}.", logged);
         }
         UpdateBatteryText();
     }
@@ -225,17 +233,14 @@ public class Card : UndoSource
     [PunRPC]
     public void AddInstructions(int logged, bool undo)
     {
-        if (undo)
-        {
-        }
-        else
-        {
+        if (!undo)
+        { 
             listOfMethods.Clear();
             methodTracker = 0;
             runNextMethod = true;
 
             NextStep step = Log.instance.GetCurrentStep();
-            Player you = step.player;
+            originalPlayer = step.player;
 
             for (int i = 0; i < dataFile.playInstructions.Length; i++)
             {
@@ -244,14 +249,14 @@ public class Card : UndoSource
                 if (dataFile.whoToTarget[i] == PlayerTarget.You)
                 {
                     foreach (string methodName in listOfSmallInstructions)
-                        listOfMethods.Add(new(you, methodName));
+                        listOfMethods.Add(new(originalPlayer, methodName));
                 }
                 else
                 {
-                    int playerTracker = you.playerPosition;
+                    int playerTracker = originalPlayer.playerPosition;
                     for (int j = 0; j < Manager.instance.playersInOrder.Count; j++)
                     {
-                        if (!(dataFile.whoToTarget[i] == PlayerTarget.Others && you == Manager.instance.playersInOrder[playerTracker]))
+                        if (!(dataFile.whoToTarget[i] == PlayerTarget.Others && originalPlayer == Manager.instance.playersInOrder[playerTracker]))
                         {
                             foreach (string methodName in listOfSmallInstructions)
                                 listOfMethods.Add(new(Manager.instance.playersInOrder[playerTracker], methodName));
@@ -263,7 +268,7 @@ public class Card : UndoSource
 
             if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
             {
-                Log.instance.AddStepRPC(1, you, null, this,
+                Log.instance.AddStepRPC(1, originalPlayer, null, this,
                     nameof(NextStep), new object[0], logged);
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
@@ -279,13 +284,18 @@ public class Card : UndoSource
             {
                 methodTracker--;
             }
-            else if (runNextMethod)
+            else if (runNextMethod && methodTracker < listOfMethods.Count)
             {
                 PlayerMethod nextMethod = listOfMethods[methodTracker];
                 methodTracker++;
 
                 Log.instance.AddStepRPC(1, nextMethod.player, null, this,
                     nextMethod.method, new object[0], logged);
+                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+            }
+            else
+            {
+                runNextMethod = false;
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
         }
@@ -297,88 +307,6 @@ public class Card : UndoSource
         runNextMethod = false;
     }
 
-    /*
-    IEnumerator ResolveInstructions(string[] listOfInstructions, Player player, int logged, bool undo)
-    {
-        runNextMethod = true;
-        for (int i = 0; i < listOfInstructions.Count(); i++)
-        {
-            string nextPart = listOfInstructions[i];
-            string[] listOfSmallInstructions = DownloadSheets.instance.SpliceString(nextPart, '/');
-
-            if (dataFile.whoToTarget[i] == PlayerTarget.You)
-            {
-                foreach (string methodName in listOfSmallInstructions)
-                    yield return RunStep(methodName, player, logged, undo);
-            }
-            else
-            {
-                int playerTracker = player.playerPosition;
-                for (int j = 0; j < Manager.instance.playersInOrder.Count; j++)
-                {
-                    Player nextPlayer = Manager.instance.playersInOrder[playerTracker];
-                    runNextMethod = true;
-
-                    if (dataFile.whoToTarget[i] == PlayerTarget.Others && player == nextPlayer)
-                        continue;
-
-                    foreach (string methodName in listOfSmallInstructions)
-                        yield return RunStep(methodName, nextPlayer, logged, undo);
-
-                    playerTracker = (playerTracker == Manager.instance.playersInOrder.Count - 1) ? 0 : playerTracker + 1;
-                }
-            }
-        }
-    }
-    */
-
-    /*
-    IEnumerator RunStep(string methodName, Player player, int logged, bool undo)
-    {
-        if (methodName.Equals("None"))
-        {
-
-        }
-        else if (methodName.Contains("ChooseMethod("))
-        {
-            string[] choices = methodName.
-                Replace("ChooseMethod(", "").
-                Replace(")", "").
-                Replace("]", "").
-                Trim().Split('|');
-
-            Popup popup = Instantiate(CarryVariables.instance.textPopup);
-            popup.StatsSetup("Choose an option", Vector3.zero);
-
-            foreach (string next in choices)
-            {
-                switch (next)
-                {
-                    case nameof(DrawCards):
-                        popup.AddTextButton($"+{dataFile.numCards} Card");
-                        break;
-                    case nameof(GainCoins):
-                        popup.AddTextButton($"+{dataFile.numCoins} Coin");
-                        break;
-                    default:
-                        popup.AddTextButton(next);
-                        break;
-                }
-            }
-
-            yield return popup.WaitForChoice();
-            string chosenMethod = choices[popup.chosenButton];
-            Destroy(popup.gameObject);
-            yield return RunStep(chosenMethod, player, logged, undo);
-        }
-        else
-        {
-            StartCoroutine((IEnumerator)methodDictionary[methodName].Invoke(this, new object[3] { player, logged, undo }));
-            if (!runNextMethod) yield break;
-        }
-    }
-    */
-
     #endregion
 
 #region Steps
@@ -387,13 +315,12 @@ public class Card : UndoSource
     void DrawCards(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (undo)
-        {
-
-        }
-        else if (step.player.InControl())
+        if (!undo && step.player.InControl())
         {
             step.player.MultiFunction(nameof(Player.RequestDraw), RpcTarget.MasterClient, new object[2] { dataFile.numCards, logged });
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
     }
 
@@ -401,49 +328,55 @@ public class Card : UndoSource
     void GainCoins(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (undo)
+        if (!undo && step.player.InControl())
         {
-
+            step.player.CoinRPC(dataFile.numCoins, logged);
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
-        else if (step.player.InControl())
+    }
+
+    [PunRPC]
+    void LoseCoins(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
         {
-            step.player.CoinRPC(this, dataFile.numCoins, logged);
+            step.player.CoinRPC(-1 * dataFile.numCoins, logged);
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
     }
 
     [PunRPC]
-    IEnumerator LoseCoins(Player player, int logged, bool undo)
+    void TakeNeg(int logged, bool undo)
     {
-        yield return null;
-        player.CoinRPC(this, -1*dataFile.numCoins, logged);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            step.player.CrownRPC(dataFile.numCrowns, logged);
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+        }
     }
 
     [PunRPC]
-    IEnumerator TakeNeg(Player player, int logged, bool undo)
+    void RemoveNeg(int logged, bool undo)
     {
-        yield return null;
-        player.CrownRPC(this, dataFile.numCrowns, logged);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            step.player.CrownRPC(-1 * dataFile.numCrowns, logged);
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+        }
     }
 
-    [PunRPC]
-    IEnumerator RemoveNeg(Player player, int logged, bool undo)
-    {
-        yield return null;
-        player.CrownRPC(this, -1*dataFile.numCrowns, logged);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
-    [PunRPC]
-    IEnumerator DiscardHand(Player player, int logged, bool undo)
-    {
-        yield return null;
-        foreach (Card card in player.listOfHand)
-            player.DiscardRPC(this, card, logged);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-
+    /*
     [PunRPC]
     IEnumerator MandatoryDiscard(Player player, int logged, bool undo)
     {
@@ -460,7 +393,6 @@ public class Card : UndoSource
                 player.DiscardRPC(this, player.chosenCard, logged);
             }
         }
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     [PunRPC]
@@ -491,23 +423,38 @@ public class Card : UndoSource
         }
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
-
+    */
     [PunRPC]
-    IEnumerator ChooseFromPlay(Player player, int logged, bool undo)
+    IEnumerator ChooseFromPlay(int logged, bool undo)
     {
-        yield return null;
-        player.ChooseCard(this, player.listOfPlay, false, logged);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            step.player.ChooseCard(step.player.listOfPlay, false, logged);
+            while (step.player.choice == step.player.undecided)
+                yield return null;
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+        }
     }
 
     [PunRPC]
-    IEnumerator ChooseFromHand(Player player, int logged, bool undo)
+    IEnumerator ChooseFromHand(int logged, bool undo)
     {
-        yield return null;
-        player.ChooseCard(this, player.listOfHand, false, logged);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            step.player.ChooseCard(step.player.listOfHand, false, logged);
+            while (step.player.choice == step.player.undecided)
+                yield return null;
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+        }
     }
 
+    /*
     [PunRPC]
     IEnumerator AddBatteryToOther(Player player, int logged, bool undo)
     {
@@ -519,9 +466,9 @@ public class Card : UndoSource
             if (player.chosenCard != null)
                 player.chosenCard.BatteryRPC(player, 1, logged);
         }
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
-
+    */
+    /*
     [PunRPC]
     IEnumerator MoveBattery(Player player, int logged, bool undo)
     {
@@ -543,13 +490,21 @@ public class Card : UndoSource
         }
         //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
+    */
 
     [PunRPC]
-    IEnumerator PlayCard(Player player, int logged, bool undo)
+    IEnumerator PlayCard(int logged, bool undo)
     {
-        yield return null;
-        player.ChooseCardToPlay(player.listOfHand.Where(card => card.dataFile.coinCost <= player.coins).ToList(), logged);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            step.player.ChooseCardToPlay(step.player.listOfHand.Where(card => card.dataFile.coinCost <= step.player.coins).ToList(), logged);
+            while (step.player.choice == step.player.undecided)
+                yield return null;
+            Log.instance.AddStepRPC(1, originalPlayer, null, this,
+                nameof(NextStep), new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+        }
     }
 
     #endregion
@@ -616,28 +571,30 @@ public class Card : UndoSource
         dataFile.numCoins = (int)Mathf.Floor(number * multiplier);
         dataFile.numCrowns = (int)Mathf.Floor(number * multiplier);
         dataFile.numBatteries = (int)Mathf.Floor(number * multiplier);
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
     [PunRPC]
-    IEnumerator SetToHandSize(Player player, int logged, bool undo)
+    void SetToHandSize(int logged, bool undo)
     {
-        yield return null;
-        MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.listOfHand.Count });
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+            MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.listOfHand.Count });
     }
 
     [PunRPC]
-    IEnumerator SetToNegCrowns(Player player, int logged, bool undo)
+    void SetToNegCrowns(int logged, bool undo)
     {
-        yield return null;
-        MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.negCrowns });
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+            MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.negCrowns });
     }
 
     [PunRPC]
-    IEnumerator SetToCoins(Player player, int logged, bool undo)
+    void SetToCoins(int logged, bool undo)
     {
-        yield return null;
-        MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { player.coins });
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+            MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.coins });
     }
 
     #endregion

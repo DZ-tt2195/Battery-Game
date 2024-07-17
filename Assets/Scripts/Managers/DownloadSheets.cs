@@ -152,7 +152,7 @@ public class DownloadSheets : MonoBehaviour
             nextData.numMisc = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numMisc)]]);
 
             string[] listOfTargets = (data[i][cardSheetsColumns[nameof(CardData.whoToTarget)]].Equals("") ? new string[1] { "None" } :
-                SpliceString(data[i][cardSheetsColumns[nameof(CardData.whoToTarget)]].Trim().ToUpper(), '-'));
+                SpliceString(data[i][cardSheetsColumns[nameof(CardData.whoToTarget)]].Trim(), '-'));
             PlayerTarget[] convertToTargets = new PlayerTarget[listOfTargets.Length];
             for (int j = 0; j < listOfTargets.Length; j++)
                 convertToTargets[j] = StringToPlayerTarget(listOfTargets[j]);
@@ -166,13 +166,14 @@ public class DownloadSheets : MonoBehaviour
     {
         switch (line)
         {
-            case "YOU":
+            case "You":
                 return PlayerTarget.You;
-            case "ALL":
+            case "All":
                 return PlayerTarget.All;
-            case "OTHERS":
+            case "Others":
                 return PlayerTarget.Others;
             default:
+                Debug.Log(line);
                 Debug.LogError("missing team target");
                 break;
         }

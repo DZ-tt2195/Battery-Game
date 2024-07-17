@@ -12,14 +12,6 @@ public class LogText : MonoBehaviour
     public Button button;
     public Player canUndoThis;
 
-    private void Awake()
-    {
-        textBox = GetComponent<TMP_Text>();
-        undoBar = this.transform.GetComponentInChildren<Image>();
-        undoBar.gameObject.SetActive(false);
-        button = GetComponent<Button>();
-    }
-
     private void FixedUpdate()
     {
         undoBar.SetAlpha(Manager.instance.opacity);

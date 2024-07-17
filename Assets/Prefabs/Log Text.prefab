@@ -88,6 +88,7 @@ GameObject:
   - component: {fileID: 8879651641130450831}
   - component: {fileID: 7773007646752275728}
   - component: {fileID: 7738356498783235254}
+  - component: {fileID: 6731871497673485929}
   m_Layer: 5
   m_Name: Log Text
   m_TagString: Untagged
@@ -268,3 +269,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c585f68e9b3fc45cb99de1eb7f74b9c3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  textBox: {fileID: 8879651641130450831}
+  undoBar: {fileID: 3104767487922892410}
+  button: {fileID: 7773007646752275728}
+  canUndoThis: {fileID: 0}
+--- !u!114 &6731871497673485929
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7239621712554033941}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed62496e85434631a8ce8752f246de34, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Active: 0
+  Target: {fileID: 1762365705190712906}

@@ -48,9 +48,9 @@ public class Log : MonoBehaviour
     public Dictionary<string, MethodInfo> dictionary = new();
 
     [Foldout("Undo", true)]
+    [ReadOnly] [SerializeField] int currentStep = 0;
+    [ReadOnly] [SerializeField] List<LogText> undosInLog = new();
     [ReadOnly] [SerializeField] List<NextStep> historyStack = new();
-    [ReadOnly][SerializeField] int currentStep = 0;
-    [ReadOnly][SerializeField] List<LogText> undosInLog = new();
     Player nextUndoBar = null;
     Button undoButton;
 
@@ -166,12 +166,15 @@ public class Log : MonoBehaviour
     [PunRPC]
     public void Continue()
     {
-        currentStep++;
-        if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
+        if (currentStep < historyStack.Count-1)
         {
-            NextStep nextUp = GetCurrentStep();
-            Debug.Log($"resolve step {currentStep}: {nextUp.instruction}");
-            nextUp.source.MultiFunction(nextUp.instruction, RpcTarget.All, new object[2] { nextUp.logged, false });
+            currentStep++;
+            if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
+            {
+                NextStep nextUp = GetCurrentStep();
+                //Debug.Log($"resolve step {currentStep}: {nextUp.instruction}");
+                nextUp.source.MultiFunction(nextUp.instruction, RpcTarget.All, new object[2] { nextUp.logged, false });
+            }
         }
     }
 
@@ -215,11 +218,11 @@ public class Log : MonoBehaviour
 
     void DisplayUndoBar()
     {
+        undosInLog.RemoveAll(item => item == null);
         if (undosInLog.Count > 0)
         {
-            bool flash = undosInLog[^1].undoBar.gameObject.activeSelf;
+            bool flash = !undosInLog[^1].undoBar.gameObject.activeSelf;
 
-            undosInLog.RemoveAll(item => item == null);
             for (int i = 0; i < undosInLog.Count; i++)
             {
                 LogText next = undosInLog[i];
@@ -241,7 +244,7 @@ public class Log : MonoBehaviour
     void UndoAmount(int amount, int logDelete)
     {
         StartCoroutine(CarryVariables.instance.TransitionImage(1f));
-        undosInLog[^1].undoBar.gameObject.SetActive(false);
+        undosInLog[^1].undoBar.gameObject.SetActive(true);
         DisplayUndoBar();
 
         Popup[] allPopups = FindObjectsOfType<Popup>();
@@ -254,13 +257,12 @@ public class Log : MonoBehaviour
             card.button.onClick.RemoveAllListeners();
         }
 
-        Debug.Log($"{RT.transform.childCount}, {logDelete}");
         for (int i = RT.transform.childCount; i>logDelete; i--)
         {
             Destroy(RT.transform.GetChild(i-1).gameObject);
         }
 
-        int tracker = -1;
+        int tracker = -2;
 
         while (tracker < amount)
         {

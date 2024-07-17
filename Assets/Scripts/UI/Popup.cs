@@ -114,6 +114,11 @@ public class Popup : MonoBehaviour
     internal IEnumerator WaitForChoice()
     {
         chosenButton = -10;
+        chosenCard = null;
+
+        if (buttonsInCollector.Count == 0)
+            yield break;
+
         while (chosenButton == -10)
             yield return null;
     }
