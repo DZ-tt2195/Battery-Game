@@ -19,7 +19,7 @@ public class Manager : UndoSource
     public static Manager instance;
 
     [Foldout("Text", true)]
-    public TMP_Text instructions;
+    [SerializeField] TMP_Text instructions;
     public Transform deck;
     public Transform discard;
     public Transform actions;
@@ -199,6 +199,12 @@ public class Manager : UndoSource
             Log.instance.AddText($"ROUND {number}");
         }
         turnNumber = number;
+    }
+
+    [PunRPC]
+    public void InstructionsText(string text)
+    {
+        instructions.text = KeywordTooltip.instance.EditText(text);
     }
 
     #endregion

@@ -278,8 +278,8 @@ MonoBehaviour:
   opacity: 1
   decrease: 1
   gameOn: 0
-  turnNumber: 0
   playersInOrder: []
+  cardIDs: []
   listOfActions: []
   listOfEvents: []
   endScreen: {fileID: 576257097}
@@ -1155,6 +1155,9 @@ MonoBehaviour:
   pv: {fileID: 0}
   RT: {fileID: 203774334}
   textBoxClone: {fileID: 7738356498783235254, guid: 6d5978b73c3d4470cbd36af5d370f5c0, type: 3}
+  currentStep: 0
+  undosInLog: []
+  historyStack: []
 --- !u!114 &675451495
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2498,7 +2501,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 310, y: 0}
-  m_SizeDelta: {x: 45, y: 1442.5}
+  m_SizeDelta: {x: 45, y: 1045}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2046815548
 MonoBehaviour:

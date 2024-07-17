@@ -35,10 +35,9 @@ public class Player : UndoSource
         Button resignButton;
 
     [Foldout("Choices", true)]
-        [ReadOnly] public int choice;
-        public int undecided {get; private set;}
-        [ReadOnly] public Card chosenCard;
         List<Card> resolvedCards = new();
+        [ReadOnly] public Card chosenCard;
+        public int choice { get; private set; }
 
     #endregion
 
@@ -46,7 +45,6 @@ public class Player : UndoSource
 
     private void Awake()
     {
-        undecided = -100000;
         pv = GetComponent<PhotonView>();
         if (PhotonNetwork.IsConnected && pv.AmOwner)
             pv.Owner.NickName = PlayerPrefs.GetString("Online Username");
@@ -127,14 +125,14 @@ public class Player : UndoSource
 
 #region Cards in Hand
 
-    public void DiscardRPC(UndoSource source, Card card, int logged)
+    public void DiscardRPC(Card card, int logged)
     {
-        Log.instance.AddStepRPC(1, this, null, this, nameof(SendDiscard), new object[1] { card.cardID }, logged);
+        Log.instance.AddStepRPC(1, this, null, this, nameof(DiscardFromHand), new object[1] { card.cardID }, logged);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
     [PunRPC]
-    void SendDiscard(int logged, bool undo)
+    void DiscardFromHand(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (undo)
@@ -169,12 +167,12 @@ public class Player : UndoSource
             listOfCardIDs[i] = Manager.instance.deck.GetChild(i).GetComponent<Card>().cardID;
         }
 
-        Log.instance.AddStepRPC(1, this, null, this, nameof(AddToHand), listOfCardIDs, logged);
+        Log.instance.AddStepRPC(1, this, null, this, nameof(DrawFromDeck), listOfCardIDs, logged);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
     [PunRPC]
-    void AddToHand(int logged, bool undo)
+    void DrawFromDeck(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (undo)
@@ -287,27 +285,14 @@ public class Player : UndoSource
         if (cardsToPlay.Count == 0)
             return;
 
-        Log.instance.AddStepRPC(1, this, null, this, nameof(ChooseCardFromList),
-            ConvertCardList(cardsToPlay, new object[2] {true, nameof(PlayChosenCard)}), logged);
-        Manager.instance.instructions.text = "Choose a card to play.";
+        Log.instance.AddStepRPC(1, this, cardsToPlay.Count <= 1 ? null : this, this, nameof(ChooseCardFromList),
+            ConvertCardList(cardsToPlay, new object[2] {true, nameof(PlayFromHand)}), logged);
+        Manager.instance.InstructionsText("Choose a card to play.");
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
     [PunRPC]
-    void PlayChosenCard(int logged, bool undo)
-    {
-        if (chosenCard != null && !undo && InControl())
-        {
-            Card cardToPlay = chosenCard;
-            CoinRPC(-1*cardToPlay.dataFile.coinCost, logged);
-
-            Log.instance.AddStepRPC(1, this, null, this, nameof(AddToPlayArea), new object[1] { cardToPlay.cardID }, logged);
-            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-        }
-    }
-
-    [PunRPC]
-    void AddToPlayArea(int logged, bool undo)
+    void PlayFromHand(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (step.infoToRemember.Length != 0)
@@ -315,6 +300,7 @@ public class Player : UndoSource
             Card newCard = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
             if (undo)
             {
+                listOfPlay.Remove(newCard);
                 StartInHand(newCard, 0f);
             }
             else
@@ -327,6 +313,8 @@ public class Player : UndoSource
                 newCard.transform.SetParent(cardplay);
 
                 Log.instance.AddText($"{this.name} plays {newCard.name}.", logged);
+                if (InControl())
+                    CoinRPC(-1 * newCard.dataFile.coinCost, logged);
                 newCard.BatteryRPC(this, newCard.dataFile.startingBatteries, logged);
             }
             SortHand();
@@ -425,35 +413,40 @@ public class Player : UndoSource
                 Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { "", 0 });
                 Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"TURN {Manager.instance.turnNumber} - {this.name}", 0 });
 
-                Log.instance.AddStepRPC(1, this, null, this, nameof(ChooseAction), new object[0], logged);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                ChooseAction();
             }
         }
     }
 
-    [PunRPC]
-    void ChooseAction(int logged, bool undo)
+    void ChooseAction()
     {
-        if (!undo && InControl())
-        {
-            Log.instance.AddStepRPC(1, this, this, this, nameof(ChooseCardFromPopup),
-                ConvertCardList(Manager.instance.listOfActions, new object[2] {false, nameof(ResolveCardInstructions)}), logged);
-            Log.instance.AddStepRPC(2, this, listOfPlay.Count == 0 ? null : this, this, nameof(ChooseNextRobot), new object[0], 0);
+        Log.instance.AddStepRPC(1, this, this, this, nameof(ChooseCardFromPopup),
+            ConvertCardList(Manager.instance.listOfActions, new object[2] { false, nameof(ResolveAction) }), 0);
+        Manager.instance.InstructionsText("Choose an action to use.");
+        Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+    }
 
-            Manager.instance.instructions.text = "Choose an action to use.";
+    [PunRPC]
+    void ResolveAction(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && InControl())
+        { 
+            Card card = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
+            ResolveCardInstructions(card, logged);
+
+            Log.instance.AddStepRPC(1, this, listOfPlay.Count <= 1 ? null : this, this, nameof(ChooseNextRobot), new object[0], 0);
             Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
     }
 
-    [PunRPC]
-    void ResolveCardInstructions(int logged, bool undo)
+    void ResolveCardInstructions(Card card, int logged)
     {
-        NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && InControl())
+        if (card != null)
         {
-            Card card = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
             Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} resolves {card.name}.", logged });
-            Log.instance.AddStepRPC(1, this, null, card, nameof(Card.AddInstructions), new object[0], logged+1);
+            card.MultiFunction(nameof(card.AddInstructions), RpcTarget.All, new object[1] {this.playerPosition});
+            card.MultiFunction("NextMethod", RpcTarget.All, new object[2] { logged+1, false });
             Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
     }
@@ -470,7 +463,7 @@ public class Player : UndoSource
 
             Log.instance.AddStepRPC(1, this, availableOptions.Count <= 1 ? null : this, this, nameof(ChooseCardFromList),
                 ConvertCardList(availableOptions, new object[2] { false, nameof(ResolveNextRobot) }), 0);
-            Manager.instance.instructions.text = "Choose the next robot to resolve.";
+            Manager.instance.InstructionsText("Choose the next robot to resolve.");
             yield return new WaitForSeconds(0.5f);
             Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
@@ -505,10 +498,7 @@ public class Player : UndoSource
             {
                 resolvedCards.Add(nextRobot);
                 nextRobot.BatteryRPC(this, -1, logged);
-
-                Log.instance.AddStepRPC(1, this, this, this, nameof(ResolveCardInstructions),
-                new object[1] {nextRobot.cardID}, logged);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                ResolveCardInstructions(nextRobot, logged);
 
                 if (InControl())
                 {
@@ -528,8 +518,8 @@ public class Player : UndoSource
 
     public void ChooseCard(List<Card> possibleCards, bool optional, int logged)
     {
-        Log.instance.AddStepRPC(1, this, null, this, nameof(ChooseCardFromList),
-            ConvertCardList(possibleCards, new object[2] { optional, "" }), logged);
+        Log.instance.AddStepRPC(1, this, possibleCards.Count <= 1 ? null : this, this,
+            nameof(ChooseCardFromList), ConvertCardList(possibleCards, new object[2] { optional, "" }), logged);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
@@ -558,7 +548,7 @@ public class Player : UndoSource
         NextStep step = Log.instance.GetCurrentStep();
         if (!undo && InControl())
         {
-            choice = undecided;
+            choice = CarryVariables.instance.undecided;
             chosenCard = null;
 
             bool optional = (bool)step.infoToRemember[0];
@@ -597,7 +587,7 @@ public class Player : UndoSource
             }
             else
             {
-                while (choice == undecided)
+                while (choice == CarryVariables.instance.undecided)
                 {
                     yield return null;
                     if (optional && popup.chosenButton > -10)
@@ -618,9 +608,12 @@ public class Player : UndoSource
             if (popup != null)
                 Destroy(popup.gameObject);
 
-            Log.instance.AddStepRPC(1, this, null, this, functionToRun,
-                new object[1] { (chosenCard == null) ? null : chosenCard.cardID }, logged);
-            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+            if (functionToRun != "")
+            {
+                Log.instance.AddStepRPC(1, this, null, this, functionToRun,
+                    new object[1] { (chosenCard == null) ? null : chosenCard.cardID }, logged);
+                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+            }
         }
     }
 

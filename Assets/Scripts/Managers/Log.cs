@@ -40,19 +40,20 @@ public class Log : MonoBehaviour
     [ReadOnly] public PhotonView pv;
 
     [Foldout("Log", true)]
-    Scrollbar scroll;
-    [SerializeField] RectTransform RT;
-    GridLayoutGroup gridGroup;
-    float startingHeight;
-    [SerializeField] LogText textBoxClone;
-    public Dictionary<string, MethodInfo> dictionary = new();
+        Scrollbar scroll;
+        [SerializeField] RectTransform RT;
+        GridLayoutGroup gridGroup;
+        [SerializeField] LogText textBoxClone;
+        Vector2 startingSize;
+        Vector2 startingPosition;
 
     [Foldout("Undo", true)]
-    [ReadOnly] [SerializeField] int currentStep = 0;
-    [ReadOnly] [SerializeField] List<LogText> undosInLog = new();
-    [ReadOnly] [SerializeField] List<NextStep> historyStack = new();
-    Player nextUndoBar = null;
-    Button undoButton;
+        [ReadOnly] [SerializeField] int currentStep = 0;
+        [ReadOnly] [SerializeField] List<LogText> undosInLog = new();
+        [ReadOnly] [SerializeField] List<NextStep> historyStack = new();
+        Player nextUndoBar = null;
+        Button undoButton;
+        public Dictionary<string, MethodInfo> dictionary = new();
 
     #endregion
 
@@ -66,7 +67,8 @@ public class Log : MonoBehaviour
         gridGroup = RT.GetComponent<GridLayoutGroup>();
         scroll = this.transform.GetChild(1).GetComponent<Scrollbar>();
 
-        startingHeight = RT.sizeDelta.y;
+        startingSize = RT.sizeDelta;
+        startingPosition = RT.transform.localPosition;
         undoButton.onClick.AddListener(() => DisplayUndoBar());
         NextStep newStep = new(null, null, null, "", new object[0], -1);
         historyStack.Add(newStep);
@@ -142,7 +144,12 @@ public class Log : MonoBehaviour
             undosInLog.Insert(0, newText);
         }
 
-        if (RT.transform.childCount >= (startingHeight / gridGroup.cellSize.y) - 1)
+        ChangeScrolling();
+    }
+
+    void ChangeScrolling()
+    {
+        if (RT.transform.childCount >= (startingSize.y / gridGroup.cellSize.y) - 1)
         {
             RT.sizeDelta = new Vector2(RT.sizeDelta.x, RT.sizeDelta.y + gridGroup.cellSize.y);
 
@@ -151,6 +158,12 @@ public class Log : MonoBehaviour
                 scroll.value = 0;
                 RT.transform.localPosition = new Vector3(RT.transform.localPosition.x, RT.transform.localPosition.y + gridGroup.cellSize.y / 2, 0);
             }
+        }
+        else
+        {
+            RT.sizeDelta = startingSize;
+            RT.transform.localPosition = startingPosition;
+            scroll.value = 0;
         }
     }
 
@@ -243,9 +256,9 @@ public class Log : MonoBehaviour
     [PunRPC]
     void UndoAmount(int amount, int logDelete)
     {
-        StartCoroutine(CarryVariables.instance.TransitionImage(1f));
-        undosInLog[^1].undoBar.gameObject.SetActive(true);
-        DisplayUndoBar();
+        Manager.instance.StopAllCoroutines();
+        foreach (Player player in Manager.instance.playersInOrder)
+            player.StopAllCoroutines();
 
         Popup[] allPopups = FindObjectsOfType<Popup>();
         foreach (Popup popup in allPopups)
@@ -255,12 +268,16 @@ public class Log : MonoBehaviour
         {
             card.button.interactable = false;
             card.button.onClick.RemoveAllListeners();
+            card.StopAllCoroutines();
         }
 
+        StartCoroutine(CarryVariables.instance.TransitionImage(1f));
+        undosInLog[^1].undoBar.gameObject.SetActive(true);
+        DisplayUndoBar();
+
         for (int i = RT.transform.childCount; i>logDelete; i--)
-        {
             Destroy(RT.transform.GetChild(i-1).gameObject);
-        }
+        ChangeScrolling();
 
         int tracker = -2;
 

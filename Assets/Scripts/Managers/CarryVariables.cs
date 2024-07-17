@@ -30,6 +30,7 @@ public class CarryVariables : MonoBehaviour
     [ReadOnly] public Dictionary<string, MethodInfo> dictionary = new();
     public Sprite faceDownSprite;
     [SerializeField] Image transitionImage;
+    public int undecided { get; private set; }
 
     private void Awake()
     {
@@ -38,6 +39,7 @@ public class CarryVariables : MonoBehaviour
             instance = this;
             Application.targetFrameRate = 60;
             pv = GetComponent<PhotonView>();
+            undecided = -10000;
             DontDestroyOnLoad(this.gameObject);
         }
         else

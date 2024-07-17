@@ -46,17 +46,17 @@
     ],
     [
       "Recharge",
-      "Add 2 Battery.",
+      "Add 1 Battery to any 2 Card.",
       "4",
       "",
       "",
       "",
       "You",
+      "AddBatteryToOther/AddBatteryToOther",
       "",
       "",
       "",
-      "",
-      "2",
+      "1",
       "0"
     ],
     [
