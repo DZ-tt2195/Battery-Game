@@ -69,7 +69,7 @@ public class Log : MonoBehaviour
 
         startingSize = RT.sizeDelta;
         startingPosition = RT.transform.localPosition;
-        undoButton.onClick.AddListener(() => DisplayUndoBar());
+        undoButton.onClick.AddListener(() => DisplayUndoBar(true));
         NextStep newStep = new(null, null, "", new object[0], -1);
         historyStack.Add(newStep);
     }
@@ -243,13 +243,12 @@ public class Log : MonoBehaviour
 
 #region Undos
 
-    void DisplayUndoBar()
+    void DisplayUndoBar(bool flash)
     {
         undosInLog.RemoveAll(item => item == null);
+
         if (undosInLog.Count > 0)
         {
-            bool flash = !undosInLog[^1].undoBar.gameObject.activeSelf;
-
             for (int i = 0; i < undosInLog.Count; i++)
             {
                 LogText next = undosInLog[i];
@@ -265,6 +264,14 @@ public class Log : MonoBehaviour
                 }
             }
         }
+
+        if (flash)
+            Invoke(nameof(WaitSome), 5f);
+    }
+
+    void WaitSome()
+    {
+        DisplayUndoBar(false);
     }
 
     [PunRPC]
@@ -289,8 +296,7 @@ public class Log : MonoBehaviour
         }
 
         StartCoroutine(CarryVariables.instance.TransitionImage(1f));
-        undosInLog[^1].undoBar.gameObject.SetActive(true);
-        DisplayUndoBar();
+        DisplayUndoBar(false);
 
         for (int i = RT.transform.childCount; i>logDelete; i--)
             Destroy(RT.transform.GetChild(i-1).gameObject);
@@ -301,7 +307,7 @@ public class Log : MonoBehaviour
         while (tracker < amount)
         {
             NextStep next = historyStack[currentStep];
-            Debug.Log($"undo step {currentStep}: {next.instruction}");
+            //Debug.Log($"undo step {currentStep}: {next.instruction}");
 
             next.source.MultiFunction(next.instruction, RpcTarget.All, new object[2] { next.logged, true });
 

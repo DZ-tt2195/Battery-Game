@@ -83,7 +83,6 @@ public class Player : UndoSource
     internal void AssignInfo(int position)
     {
         this.playerPosition = position;
-        resignButton.onClick.AddListener(ResignTime);
         storePlayers = GameObject.Find("Store Players").transform;
         this.transform.SetParent(storePlayers);
         this.transform.localPosition = new Vector3(2500 * this.playerPosition, 0, 0);
@@ -96,6 +95,7 @@ public class Player : UndoSource
 
         if (InControl())
         {
+            resignButton.onClick.AddListener(ResignTime);
             MoveScreen();
         }
     }
@@ -139,7 +139,14 @@ public class Player : UndoSource
         NextStep step = Log.instance.GetCurrentStep();
         if (undo)
         {
-            StartInHand(Manager.instance.cardIDs[(int)step.infoToRemember[0]], 0f);
+            try
+            {
+                StartInHand(Manager.instance.cardIDs[(int)step.infoToRemember[0]], 0f);
+            }
+            catch
+            {
+
+            }
         }
         else
         {
@@ -181,11 +188,17 @@ public class Player : UndoSource
         {
             foreach (object next in step.infoToRemember.AsEnumerable().Reverse())
             {
-                Card card = Manager.instance.cardIDs[(int)next];
-                card.transform.SetParent(Manager.instance.deck);
-                card.transform.localPosition = new(-10000, -10000);
-                card.transform.SetAsFirstSibling();
-                listOfHand.Remove(card);
+                try
+                {
+                    Card card = Manager.instance.cardIDs[(int)next];
+                    card.transform.SetParent(Manager.instance.deck);
+                    card.transform.localPosition = new(-10000, -10000);
+                    card.transform.SetAsFirstSibling();
+                    listOfHand.Remove(card);
+                }
+                catch
+                {
+                }
             }
         }
         else
@@ -327,21 +340,33 @@ public class Player : UndoSource
     void ChangeCoin(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        int amount = (int)step.infoToRemember[0];
-        if (undo)
-        {
-            this.coins -= amount;
-        }
-        else if (amount != 0)
-        {
-            this.coins += amount;
 
-            if (amount > 0)
-                Log.instance.AddText($"{this.name} gains {Mathf.Abs(amount)} Coin.", logged);
-            else
-                Log.instance.AddText($"{this.name} loses {Mathf.Abs(amount)} Coin.", logged);
+        try
+        {
+            int amount = (int)step.infoToRemember[0];
+
+            if (amount != 0)
+            {
+                if (undo)
+                {
+                    this.coins -= amount;
+                }
+                else
+                {
+                    this.coins += amount;
+
+                    if (amount > 0)
+                        Log.instance.AddText($"{this.name} gains {Mathf.Abs(amount)} Coin.", logged);
+                    else
+                        Log.instance.AddText($"{this.name} loses {Mathf.Abs(amount)} Coin.", logged);
+                }
+                UpdateButton();
+            }
         }
-        UpdateButton();
+        catch
+        {
+
+        }
     }
 
     public void CrownRPC(int number, int logged)
@@ -354,21 +379,32 @@ public class Player : UndoSource
     void ChangeCrown(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        int amount = (int)step.infoToRemember[0];
-        if (undo)
+        try
         {
-            this.negCrowns -= amount;
-        }
-        else if (amount != 0)
-        {
-            this.negCrowns += amount;
+            int amount = (int)step.infoToRemember[0];
 
-            if (amount > 0)
-                Log.instance.AddText($"{this.name} takes -{Mathf.Abs(amount)} Neg Crown.", logged);
-            else
-                Log.instance.AddText($"{this.name} removes -{Mathf.Abs(amount)} Neg Crown.", logged);
+            if (amount != 0)
+            {
+                if (undo)
+                {
+                    this.negCrowns -= amount;
+                }
+                else
+                {
+                    this.negCrowns += amount;
+
+                    if (amount > 0)
+                        Log.instance.AddText($"{this.name} takes -{Mathf.Abs(amount)} Neg Crown.", logged);
+                    else
+                        Log.instance.AddText($"{this.name} removes -{Mathf.Abs(amount)} Neg Crown.", logged);
+                }
+                UpdateButton();
+            }
         }
-        UpdateButton();
+        catch
+        {
+
+        }
     }
 
     public int CalculateScore()
@@ -448,25 +484,10 @@ public class Player : UndoSource
     void ResolveNextRobot(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        Card nextRobot = null;
+        try
+        {
+            Card nextRobot = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
 
-        if (step.infoToRemember[0] == null)
-        {
-            Player nextPlayer = Manager.instance.playersInOrder[(playerPosition + 1) % Manager.instance.playersInOrder.Count];
-            if (undo && nextPlayer.playerPosition == 0)
-            {
-                Manager.instance.MultiFunction(nameof(Manager.instance.ChangeTurnNumber), RpcTarget.All, new object[1] { Manager.instance.turnNumber - 1 });
-            }
-            else if (!undo && InControl())
-            {
-                Manager.instance.PrintPlayerTurn(nextPlayer, Manager.instance.turnNumber + 1);
-                Log.instance.AddStepRPC(1, nextPlayer, nextPlayer, nameof(StartTurn), new object[0], 0);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-            }
-        }
-        else
-        {
-            nextRobot = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
             if (undo)
             {
                 resolvedCards.Remove(nextRobot);
@@ -487,6 +508,26 @@ public class Player : UndoSource
                 ResolveCardInstructions(nextRobot, logged);
             }
         }
+        catch
+        {
+            Player nextPlayer = Manager.instance.playersInOrder[(playerPosition + 1) % Manager.instance.playersInOrder.Count];
+            if (InControl())
+            {
+                if (undo)
+                {
+                    if (nextPlayer.playerPosition == 0)
+                    {
+                        Manager.instance.MultiFunction(nameof(Manager.instance.ChangeTurnNumber), RpcTarget.All, new object[1] { Manager.instance.turnNumber - 1 });
+                    }
+                }
+                else
+                {
+                    Manager.instance.PrintPlayerTurn(nextPlayer, Manager.instance.turnNumber + 1);
+                    Log.instance.AddStepRPC(1, nextPlayer, nextPlayer, nameof(StartTurn), new object[0], 0);
+                    Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                }
+            }
+        }
     }
 
     #endregion
@@ -497,7 +538,7 @@ public class Player : UndoSource
     {
         Log.instance.AddStepRPC(1, this, this, nameof(ChooseCardFromList),
             ConvertCardList(possibleCards, new object[2] { optional, "" }), logged);
-        if (possibleCards.Count > 0 || optional)
+        if (possibleCards.Count >= 2 || optional)
             Log.instance.MultiFunction(nameof(Log.instance.CurrentStepNeedsDecision), RpcTarget.All, new object[1] { this.playerPosition });
         Manager.instance.InstructionsText(changeInstructions);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);

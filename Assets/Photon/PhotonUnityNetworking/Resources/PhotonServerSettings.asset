@@ -118,6 +118,10 @@ MonoBehaviour:
   - RemoveBatteryFromOther
   - ResolveRobots
   - MoveTracker
+  - StepNeedsDecision
+  - NextStepNeedsDecision
+  - CurrentStepNeedsDecision
+  - ChangeTurnNumber
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0

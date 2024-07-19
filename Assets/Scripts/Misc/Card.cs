@@ -301,8 +301,7 @@ public class Card : UndoSource
     void MoveTracker(int adjust)
     {
         methodTracker += adjust;
-        if (adjust < 0)
-            runNextMethod = false;
+        runNextMethod = adjust < 0 || methodTracker < listOfMethods.Count;
     }
 
     [PunRPC]
