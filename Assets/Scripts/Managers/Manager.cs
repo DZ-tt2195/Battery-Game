@@ -186,19 +186,28 @@ public class Manager : UndoSource
     void PlayUntilFinish()
     {
         gameOn = true;
-        Log.instance.AddStepRPC(1, playersInOrder[0], null, playersInOrder[0], nameof(Player.StartTurn), new object[0], 0);
+        PrintPlayerTurn(playersInOrder[0], 1);
+        Log.instance.AddStepRPC(1, playersInOrder[0], playersInOrder[0], nameof(Player.StartTurn), new object[0], 0);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
     [PunRPC]
-    public void UpdateTurnNumber(int number)
+    public void ChangeTurnNumber(int newNumber)
     {
-        if (turnNumber < number)
+        turnNumber = Mathf.Max(0, newNumber);
+    }
+
+    public void PrintPlayerTurn(Player nextPlayer, int newNumber)
+    {
+        MultiFunction(nameof(ChangeTurnNumber), RpcTarget.All, new object[1] { newNumber });
+        Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { "", 0 });
+
+        if (nextPlayer.playerPosition == 0)
         {
-            Log.instance.AddText("");
-            Log.instance.AddText($"ROUND {number}");
+            Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"ROUND {newNumber}", 0 });
+            Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { "", 0 });
         }
-        turnNumber = number;
+        Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{nextPlayer.name}'s Turn", 0 });
     }
 
     [PunRPC]

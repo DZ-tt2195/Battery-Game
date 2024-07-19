@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Photon.Pun;
 using System.Reflection;
 using System;
+using Photon.Realtime;
 
 [Serializable]
 public class NextStep
@@ -19,10 +20,9 @@ public class NextStep
     public Player canUndoThis;
     public int logged;
 
-    internal NextStep(Player player, Player canUndoThis, UndoSource source, string instruction, object[] infoToRemember, int logged)
+    internal NextStep(Player player, UndoSource source, string instruction, object[] infoToRemember, int logged)
     {
         this.player = player;
-        this.canUndoThis = canUndoThis;
         this.source = source;
         this.instruction = instruction;
         this.infoToRemember = infoToRemember;
@@ -70,7 +70,7 @@ public class Log : MonoBehaviour
         startingSize = RT.sizeDelta;
         startingPosition = RT.transform.localPosition;
         undoButton.onClick.AddListener(() => DisplayUndoBar());
-        NextStep newStep = new(null, null, null, "", new object[0], -1);
+        NextStep newStep = new(null, null, "", new object[0], -1);
         historyStack.Add(newStep);
     }
 
@@ -131,6 +131,7 @@ public class Log : MonoBehaviour
             return;
 
         LogText newText = Instantiate(textBoxClone, RT.transform);
+        newText.name = $"Log {RT.transform.childCount}";
         newText.textBox.text = "";
         for (int i = 0; i < indent; i++)
             newText.textBox.text += "     ";
@@ -149,14 +150,15 @@ public class Log : MonoBehaviour
 
     void ChangeScrolling()
     {
-        if (RT.transform.childCount >= (startingSize.y / gridGroup.cellSize.y) - 1)
+        int goPast = Mathf.FloorToInt((startingSize.y / gridGroup.cellSize.y) - 1);
+        //Debug.Log($"{RT.transform.childCount} vs {goPast}");
+        if (RT.transform.childCount > goPast)
         {
-            RT.sizeDelta = new Vector2(RT.sizeDelta.x, RT.sizeDelta.y + gridGroup.cellSize.y);
-
+            RT.sizeDelta = new Vector2(startingSize.x, startingSize.y + ((RT.transform.childCount - goPast) * gridGroup.cellSize.y));
             if (scroll.value <= 0.2f)
             {
-                scroll.value = 0;
                 RT.transform.localPosition = new Vector3(RT.transform.localPosition.x, RT.transform.localPosition.y + gridGroup.cellSize.y / 2, 0);
+                scroll.value = 0;
             }
         }
         else
@@ -167,6 +169,12 @@ public class Log : MonoBehaviour
         }
     }
 
+    private void Update()
+    {
+        if (Application.isEditor && Input.GetKeyDown(KeyCode.Space))
+            AddText($"test {RT.transform.childCount}");
+    }
+
     #endregion
 
 #region Steps
@@ -174,6 +182,13 @@ public class Log : MonoBehaviour
     public NextStep GetCurrentStep()
     {
         return historyStack[currentStep];
+    }
+
+    [PunRPC]
+    public void CurrentStepNeedsDecision(int playerPosition)
+    {
+        historyStack[currentStep].canUndoThis = Manager.instance.playersInOrder[playerPosition];
+        nextUndoBar = Manager.instance.playersInOrder[playerPosition];
     }
 
     [PunRPC]
@@ -191,29 +206,28 @@ public class Log : MonoBehaviour
         }
     }
 
-    public void AddStepRPC(int insertion, Player player, Player canUndo, UndoSource source, string instruction, object[] infoToRemember, int logged)
+    public void AddStepRPC(int insertion, Player player, UndoSource source, string instruction, object[] infoToRemember, int logged)
     {
         if (PhotonNetwork.IsConnected)
         {
-            pv.RPC(nameof(AddStep), RpcTarget.All, insertion, player == null ? -1 : player.playerPosition, canUndo == null ? -1 : canUndo.playerPosition, source == null ? -1 : source.pv.ViewID, instruction, infoToRemember, logged);
+            pv.RPC(nameof(AddStep), RpcTarget.All, insertion, player == null ? -1 : player.playerPosition, source == null ? -1 : source.pv.ViewID, instruction, infoToRemember, logged);
         }
         else
         {
-            AddStep(insertion, player, canUndo, source, instruction, infoToRemember, logged);
+            AddStep(insertion, player, source, instruction, infoToRemember, logged);
         }
     }
 
     [PunRPC]
-    void AddStep(int insertion, int playerPosition, int canUndo, int source, string instruction, object[] infoToRemember, int logged)
+    void AddStep(int insertion, int playerPosition, int source, string instruction, object[] infoToRemember, int logged)
     {
-        AddStep(insertion, playerPosition < 0 ? null : Manager.instance.playersInOrder[playerPosition], canUndo < 0 ? null : Manager.instance.playersInOrder[canUndo], source < 0 ? null : PhotonView.Find(source).GetComponent<UndoSource>(), instruction, infoToRemember, logged);
+        AddStep(insertion, playerPosition < 0 ? null : Manager.instance.playersInOrder[playerPosition],
+            source < 0 ? null : PhotonView.Find(source).GetComponent<UndoSource>(), instruction, infoToRemember, logged);
     }
 
-    void AddStep(int insertion, Player player, Player canUndo, UndoSource source, string instruction, object[] infoToRemember, int logged)
+    void AddStep(int insertion, Player player, UndoSource source, string instruction, object[] infoToRemember, int logged)
     {
-        NextStep newStep = new(player, canUndo, source, instruction, infoToRemember, logged);
-        if (canUndo != null)
-            nextUndoBar = canUndo;
+        NextStep newStep = new(player, source, instruction, infoToRemember, logged);
 
         try
         {
@@ -258,7 +272,9 @@ public class Log : MonoBehaviour
     {
         Manager.instance.StopAllCoroutines();
         foreach (Player player in Manager.instance.playersInOrder)
-            player.StopAllCoroutines();
+        {
+            player.ResetEvent();
+        }
 
         Popup[] allPopups = FindObjectsOfType<Popup>();
         foreach (Popup popup in allPopups)
@@ -268,7 +284,8 @@ public class Log : MonoBehaviour
         {
             card.button.interactable = false;
             card.button.onClick.RemoveAllListeners();
-            card.StopAllCoroutines();
+            card.border.gameObject.SetActive(false);
+            card.ResetEvent();
         }
 
         StartCoroutine(CarryVariables.instance.TransitionImage(1f));
@@ -286,25 +303,27 @@ public class Log : MonoBehaviour
             NextStep next = historyStack[currentStep];
             Debug.Log($"undo step {currentStep}: {next.instruction}");
 
+            next.source.MultiFunction(next.instruction, RpcTarget.All, new object[2] { next.logged, true });
+
             if (next.canUndoThis != null)
                 tracker++;
 
             if (tracker == amount)
             {
-                currentStep--;
+                Debug.Log($"continue going at step {currentStep}: {next.instruction}");
                 nextUndoBar = next.canUndoThis;
+                currentStep--;
                 Continue();
                 break;
             }
             else
             {
-                next.source.MultiFunction(next.instruction, RpcTarget.All, new object[2] { next.logged, true });
                 historyStack.RemoveAt(currentStep);
                 currentStep--;
             }
         }
     }
 
-    #endregion
+#endregion
 
 }

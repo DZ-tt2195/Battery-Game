@@ -108,6 +108,16 @@ MonoBehaviour:
   - ChooseNextRobot
   - ResolveNextRobot
   - ResolveCardInstructions
+  - AddBatteryToSelf
+  - InstructionsText
+  - ResolveAction
+  - NextMethod
+  - DiscardFromHand
+  - DrawFromDeck
+  - PlayFromHand
+  - RemoveBatteryFromOther
+  - ResolveRobots
+  - MoveTracker
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0

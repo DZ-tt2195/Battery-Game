@@ -43,6 +43,7 @@ public class Card : UndoSource
         List<PlayerMethod> listOfMethods = new();
         int methodTracker;
         Player originalPlayer;
+        public event Action eventCompletedCard;
         public bool runNextMethod { get; private set; }
 
     #endregion
@@ -195,7 +196,7 @@ public class Card : UndoSource
 
     public void BatteryRPC(Player player, int number, int logged)
     {
-        Log.instance.AddStepRPC(1, player, null, this, nameof(ChangeBatteries), new object[1] { this.batteries + number >= 0 ? number : -this.batteries }, logged);
+        Log.instance.AddStepRPC(1, player, this, nameof(ChangeBatteries), new object[1] { this.batteries + number >= 0 ? number : -this.batteries }, logged);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
@@ -278,20 +279,18 @@ public class Card : UndoSource
         {
             if (undo)
             {
-                methodTracker--;
             }
             else if (runNextMethod && methodTracker < listOfMethods.Count)
             {
                 PlayerMethod nextMethod = listOfMethods[methodTracker];
-                methodTracker++;
-                Debug.Log($"{this.name}: {methodTracker}/{listOfMethods.Count}");
 
-                Log.instance.AddStepRPC(1, nextMethod.player, null, this,
+                Log.instance.AddStepRPC(1, nextMethod.player, this,
                     nextMethod.method, new object[0], logged);
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
             else
             {
+                methodTracker = listOfMethods.Count;
                 MultiFunction(nameof(StopInstructions), RpcTarget.All);
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
@@ -299,9 +298,24 @@ public class Card : UndoSource
     }
 
     [PunRPC]
+    void MoveTracker(int adjust)
+    {
+        methodTracker += adjust;
+        if (adjust < 0)
+            runNextMethod = false;
+    }
+
+    [PunRPC]
     void StopInstructions()
     {
         runNextMethod = false;
+        //Debug.Log($"completed {this.name}'s instructions");
+        eventCompletedCard?.Invoke();
+    }
+
+    public void ResetEvent()
+    {
+        eventCompletedCard = null;
     }
 
     #endregion
@@ -309,12 +323,33 @@ public class Card : UndoSource
 #region Steps
 
     [PunRPC]
+    void ResolveRobots(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] {-1});
+        }
+        else if (!undo && step.player.InControl())
+        {
+            Log.instance.AddStepRPC(1, step.player, step.player, "ChooseNextRobot", new object[0], 0);
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
+            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+        }
+    }
+
+    [PunRPC]
     void DrawCards(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
         {
             step.player.MultiFunction(nameof(Player.RequestDraw), RpcTarget.MasterClient, new object[2] { dataFile.numCards, logged });
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }
@@ -323,9 +358,14 @@ public class Card : UndoSource
     void GainCoins(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
         {
             step.player.CoinRPC(dataFile.numCoins, logged);
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }
@@ -334,9 +374,14 @@ public class Card : UndoSource
     void LoseCoins(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
         {
             step.player.CoinRPC(-1 * dataFile.numCoins, logged);
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }
@@ -345,9 +390,14 @@ public class Card : UndoSource
     void TakeNeg(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
         {
             step.player.CrownRPC(dataFile.numCrowns, logged);
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }
@@ -364,80 +414,84 @@ public class Card : UndoSource
     }
 
     [PunRPC]
-    IEnumerator MandatoryDiscard(Player player, int logged, bool undo)
+    void MandatoryDiscard(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
         {
-            for (int i = 0; i < dataFile.numCards; i++)
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
+        {
+            Action handler = null;
+            handler = () =>
             {
-                List<Card> canDiscard = step.player.listOfHand;
-                step.player.ChooseCard(canDiscard, false, logged);
-                Manager.instance.InstructionsText($"Discard a card ({dataFile.numCards-i} more)");
-                while (step.player.choice == CarryVariables.instance.undecided)
-                    yield return null;
+                step.player.eventChosenCard -= handler;
+                if (step.player.chosenCard != null)
+                    step.player.DiscardRPC(step.player.chosenCard, logged);
 
-                Card selection = step.player.chosenCard;
-                if (selection != null)
-                    step.player.DiscardRPC(selection, logged);
-            }
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
+                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            };
+            step.player.eventChosenCard += handler;
+            List<Card> canDiscard = step.player.listOfHand;
+            step.player.ChooseCard(canDiscard, false, logged, $"Discard a card.");
         }
     }
 
     [PunRPC]
-    IEnumerator OptionalDiscard(Player player, int logged, bool undo)
+    void AddBatteryToOther(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
         {
-            if (step.player.listOfHand.Count >= dataFile.numCards)
-            {
-                for (int i = 0; i < dataFile.numCards; i++)
-                {
-                    List<Card> canDiscard = step.player.listOfHand;
-                    if (i == 0)
-                    {
-                        step.player.ChooseCard(canDiscard, true, logged);
-                        Manager.instance.InstructionsText($"Discard a card? ({dataFile.numCards - i} more)");
-                    }
-                    else
-                    {
-                        step.player.ChooseCard(canDiscard, false, logged);
-                        Manager.instance.InstructionsText($"Keep discarding ({dataFile.numCards - i} more)");
-                    }
-
-                    while (step.player.choice == CarryVariables.instance.undecided)
-                        yield return null;
-
-                    Card selection = step.player.chosenCard;
-                    if (selection != null)
-                        step.player.DiscardRPC(selection, logged);
-                    else
-                        break;
-                }
-            }
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
         }
-    }
-
-    [PunRPC]
-    IEnumerator AddBatteryToOther(int logged, bool undo)
-    {
-        NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        else if (!undo && step.player.InControl())
         {
+            Action handler = null;
+            handler = () =>
+            {
+                step.player.eventChosenCard -= handler;
+                if (step.player.chosenCard != null)
+                    step.player.chosenCard.BatteryRPC(step.player, dataFile.numBatteries, logged);
+
+                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
+                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            };
+
+            step.player.eventChosenCard += handler;
             List<Card> otherCards = step.player.listOfPlay;
             otherCards.Remove(this);
-            step.player.ChooseCard(otherCards, false, logged);
-            Manager.instance.InstructionsText($"Add {dataFile.numBatteries} Battery to a card.");
-            while (step.player.choice == CarryVariables.instance.undecided)
-                yield return null;
+            step.player.ChooseCard(otherCards, false, logged, $"Add {dataFile.numBatteries} Battery to a card.");
+        }
+    }
 
-            Card selection = step.player.chosenCard;
-            if (selection != null)
-                selection.BatteryRPC(step.player, dataFile.numBatteries, logged);
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+    [PunRPC]
+    void RemoveBatteryFromOther(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
+        {
+            Action handler = null;
+            handler = () =>
+            {
+                step.player.eventChosenCard -= handler;
+                if (step.player.chosenCard != null)
+                    step.player.chosenCard.BatteryRPC(step.player, -1 * dataFile.numBatteries, logged);
+
+                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
+                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            };
+
+            step.player.eventChosenCard += handler;
+            List<Card> otherCards = step.player.listOfPlay;
+            otherCards.Remove(this);
+            step.player.ChooseCard(otherCards, false, logged, $"Add {dataFile.numBatteries} Battery to a card.");
         }
     }
 
@@ -445,16 +499,21 @@ public class Card : UndoSource
     void AddBatteryToSelf(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
         {
             this.BatteryRPC(step.player, dataFile.numBatteries, logged);
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }
 
     /*
     [PunRPC]
-    IEnumerator MoveBattery(Player player, int logged, bool undo)
+    void MoveBattery( int logged, bool undo)
     {
         yield return null;
         if (player.listOfPlay.Count >= 2)
@@ -477,15 +536,31 @@ public class Card : UndoSource
     */
 
     [PunRPC]
-    IEnumerator PlayCard(int logged, bool undo)
+    void PlayCard(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
         {
-            step.player.ChooseCardToPlay(step.player.listOfHand.Where(card => card.dataFile.coinCost <= step.player.coins).ToList(), logged);
-            while (step.player.choice == CarryVariables.instance.undecided)
-                yield return null;
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
+        {
+            Action handler = null;
+            handler = () =>
+            {
+                step.player.eventChosenCard -= handler;
+                if (step.player.chosenCard != null)
+                {
+                    Log.instance.AddStepRPC(1, step.player, step.player, nameof(Player.PlayFromHand),
+                        new object[1] { step.player.chosenCard.cardID }, logged);
+                    Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                }
+                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
+                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            };
+            step.player.eventChosenCard += handler;
+            List<Card> possibleCards = step.player.listOfHand.Where(card => card.dataFile.coinCost <= step.player.coins).ToList();
+            step.player.ChooseCard(possibleCards, false, logged, $"Play a card?");
         }
     }
 
@@ -494,7 +569,7 @@ public class Card : UndoSource
     /*
 #region Booleans
 
-    IEnumerator HandOrMore(Player player, int logged, bool undo)
+    void HandOrMore(Player player, int logged, bool undo)
     {
         yield return null;
         if (!(player.listOfHand.Count <= dataFile.numMisc))
@@ -502,7 +577,7 @@ public class Card : UndoSource
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator MoneyOrLess(Player player, int logged, bool undo)
+    void MoneyOrLess(Player player, int logged, bool undo)
     {
         yield return null;
         if (!(player.coins <= dataFile.numMisc))
@@ -510,7 +585,7 @@ public class Card : UndoSource
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator MoneyOrMore(Player player, int logged, bool undo)
+    void MoneyOrMore(Player player, int logged, bool undo)
     {
         yield return null;
         if (!(player.coins >= dataFile.numMisc))
@@ -518,7 +593,7 @@ public class Card : UndoSource
         MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
     }
 
-    IEnumerator YesOrNo(Player player, int logged, bool undo)
+    void YesOrNo(Player player, int logged, bool undo)
     {
         Popup popup = Instantiate(CarryVariables.instance.textPopup);
         popup.transform.SetParent(GameObject.Find("Canvas").transform);
@@ -551,9 +626,14 @@ public class Card : UndoSource
     void SetToHandSize(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
         if (!undo && step.player.InControl())
         {
             MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.listOfHand.Count });
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }
@@ -562,9 +642,14 @@ public class Card : UndoSource
     void SetToNegCrowns(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
         if (!undo && step.player.InControl())
         {
             MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.negCrowns });
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }
@@ -573,9 +658,14 @@ public class Card : UndoSource
     void SetToCoins(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
         if (!undo && step.player.InControl())
         {
             MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.coins });
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
             MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
         }
     }

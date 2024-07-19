@@ -17,8 +17,7 @@ public class Popup : MonoBehaviour
     [SerializeField] Button textButton;
     [SerializeField] Button cardButton;
     List<Button> buttonsInCollector = new List<Button>();
-    [ReadOnly] public int chosenButton = -10;
-    [ReadOnly] public Card chosenCard = null;
+    [ReadOnly] public Player decidingPlayer;
 
     void Awake()
     {
@@ -27,8 +26,9 @@ public class Popup : MonoBehaviour
         imageWidth = this.transform.GetComponent<RectTransform>();
     }
 
-    internal void StatsSetup(string header, Vector2 position)
+    internal void StatsSetup(Player player, string header, Vector2 position)
     {
+        decidingPlayer = player;
         this.textbox.text = KeywordTooltip.instance.EditText(header);
         this.transform.SetParent(canvas.transform);
         this.transform.localPosition = position;
@@ -52,7 +52,7 @@ public class Popup : MonoBehaviour
 
         nextButton.interactable = true;
         int buttonNumber = buttonsInCollector.Count;
-        nextButton.onClick.AddListener(() => ReceiveChoice(buttonNumber, null));
+        nextButton.onClick.AddListener(() => decidingPlayer.MadeDecision(null, buttonNumber));
         buttonsInCollector.Add(nextButton);
 
         imageWidth.sizeDelta = new Vector2(Mathf.Max(buttonsInCollector.Count, 2) * 350, imageWidth.sizeDelta.y);
@@ -74,7 +74,7 @@ public class Popup : MonoBehaviour
 
         nextButton.interactable = true;
         int buttonNumber = buttonsInCollector.Count;
-        nextButton.onClick.AddListener(() => ReceiveChoice(buttonNumber, card));
+        nextButton.onClick.AddListener(() => decidingPlayer.MadeDecision(card, buttonNumber));
         buttonsInCollector.Add(nextButton);
 
         imageWidth.sizeDelta = new Vector2(Mathf.Max(buttonsInCollector.Count, 2) * 350, imageWidth.sizeDelta.y);
@@ -85,12 +85,6 @@ public class Popup : MonoBehaviour
             Transform nextTransform = buttonsInCollector[i].transform;
             nextTransform.transform.localPosition = new Vector2((buttonsInCollector.Count - 1) * -150 + (300 * i), 0);
         }
-    }
-
-    void ReceiveChoice(int buttonNumber, Card card)
-    {
-        chosenButton = buttonNumber;
-        chosenCard = card;
     }
 
     internal void DisableAll()
@@ -111,15 +105,9 @@ public class Popup : MonoBehaviour
         }
     }
 
-    internal IEnumerator WaitForChoice()
+    internal void WaitForChoice()
     {
-        chosenButton = -10;
-        chosenCard = null;
-
         if (buttonsInCollector.Count == 0)
-            yield break;
-
-        while (chosenButton == -10)
-            yield return null;
+            decidingPlayer.MadeDecision(null, -10);
     }
 }
