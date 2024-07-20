@@ -204,21 +204,28 @@ public class Card : UndoSource
     void ChangeBatteries(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        int amount = (int)step.infoToRemember[0];
-        if (undo)
+        try
         {
-            this.batteries -= amount;
-        }
-        else if (amount != 0)
-        {
-            this.batteries += amount;
+            int amount = (int)step.infoToRemember[0];
+            if (undo)
+            {
+                this.batteries -= amount;
+            }
+            else if (amount != 0)
+            {
+                this.batteries += amount;
 
-            if (amount > 0)
-                Log.instance.AddText($"{step.player.name} adds {Mathf.Abs(amount)} Battery to {this.name}.", logged);
-            else
-                Log.instance.AddText($"{step.player.name} removes {Mathf.Abs(amount)} Battery from {this.name}.", logged);
+                if (amount > 0)
+                    Log.instance.AddText($"{step.player.name} adds {Mathf.Abs(amount)} Battery to {this.name}.", logged);
+                else
+                    Log.instance.AddText($"{step.player.name} removes {Mathf.Abs(amount)} Battery from {this.name}.", logged);
+            }
+            UpdateBatteryText();
         }
-        UpdateBatteryText();
+        catch
+        {
+
+        }
     }
 
     void UpdateBatteryText()
@@ -235,7 +242,7 @@ public class Card : UndoSource
     public void AddInstructions(int playerPosition)
     {
         listOfMethods.Clear();
-        methodTracker = 0;
+        methodTracker = -1;
         runNextMethod = true;
         originalPlayer = Manager.instance.playersInOrder[playerPosition];
 
@@ -262,38 +269,25 @@ public class Card : UndoSource
                 }
             }
         }
-        /*
-        if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
-        {
-            Log.instance.AddStepRPC(1, originalPlayer, null, this,
-                nameof(NextStep), new object[0], logged);
-            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-        }
-        */
     }
 
     [PunRPC]
-    void NextMethod(int logged, bool undo)
+    public void NextMethod(int logged)
     {
-        if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
-        {
-            if (undo)
-            {
-            }
-            else if (runNextMethod && methodTracker < listOfMethods.Count)
-            {
-                PlayerMethod nextMethod = listOfMethods[methodTracker];
+        MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
 
-                Log.instance.AddStepRPC(1, nextMethod.player, this,
-                    nextMethod.method, new object[0], logged);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-            }
-            else
-            {
-                methodTracker = listOfMethods.Count;
-                MultiFunction(nameof(StopInstructions), RpcTarget.All);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-            }
+        if (runNextMethod && methodTracker < listOfMethods.Count)
+        {
+            PlayerMethod nextMethod = listOfMethods[methodTracker];
+
+            Log.instance.AddStepRPC(1, nextMethod.player, this,
+                nextMethod.method, new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+        }
+        else
+        {
+            MultiFunction(nameof(StopInstructions), RpcTarget.All);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
     }
 
@@ -332,8 +326,7 @@ public class Card : UndoSource
         else if (!undo && step.player.InControl())
         {
             Log.instance.AddStepRPC(1, step.player, step.player, "ChooseNextRobot", new object[0], 0);
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -348,8 +341,7 @@ public class Card : UndoSource
         else if (!undo && step.player.InControl())
         {
             step.player.MultiFunction(nameof(Player.RequestDraw), RpcTarget.MasterClient, new object[2] { dataFile.numCards, logged });
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -364,8 +356,7 @@ public class Card : UndoSource
         else if (!undo && step.player.InControl())
         {
             step.player.CoinRPC(dataFile.numCoins, logged);
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -380,8 +371,7 @@ public class Card : UndoSource
         else if (!undo && step.player.InControl())
         {
             step.player.CoinRPC(-1 * dataFile.numCoins, logged);
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -396,8 +386,7 @@ public class Card : UndoSource
         else if (!undo && step.player.InControl())
         {
             step.player.CrownRPC(dataFile.numCrowns, logged);
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -405,10 +394,14 @@ public class Card : UndoSource
     void RemoveNeg(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        if (!undo && step.player.InControl())
+        if (undo)
         {
-            step.player.CrownRPC(-1 * dataFile.numCrowns, logged);
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
+        {
+            step.player.CrownRPC(-1*dataFile.numCrowns, logged);
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -429,8 +422,7 @@ public class Card : UndoSource
                 if (step.player.chosenCard != null)
                     step.player.DiscardRPC(step.player.chosenCard, logged);
 
-                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+                MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
             };
             step.player.eventChosenCard += handler;
             List<Card> canDiscard = step.player.listOfHand;
@@ -455,8 +447,7 @@ public class Card : UndoSource
                 if (step.player.chosenCard != null)
                     step.player.chosenCard.BatteryRPC(step.player, dataFile.numBatteries, logged);
 
-                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+                MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
             };
 
             step.player.eventChosenCard += handler;
@@ -483,8 +474,7 @@ public class Card : UndoSource
                 if (step.player.chosenCard != null)
                     step.player.chosenCard.BatteryRPC(step.player, -1 * dataFile.numBatteries, logged);
 
-                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+                MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
             };
 
             step.player.eventChosenCard += handler;
@@ -505,8 +495,7 @@ public class Card : UndoSource
         else if (!undo && step.player.InControl())
         {
             this.BatteryRPC(step.player, dataFile.numBatteries, logged);
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -554,8 +543,7 @@ public class Card : UndoSource
                         new object[1] { step.player.chosenCard.cardID }, logged);
                     Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
                 }
-                MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-                MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+                MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
             };
             step.player.eventChosenCard += handler;
             List<Card> possibleCards = step.player.listOfHand.Where(card => card.dataFile.coinCost <= step.player.coins).ToList();
@@ -565,7 +553,7 @@ public class Card : UndoSource
 
     #endregion
 
-    /*
+/*
 #region Booleans
 
     void HandOrMore(Player player, int logged, bool undo)
@@ -612,7 +600,7 @@ public class Card : UndoSource
 #region Setters
 
     [PunRPC]
-    void SetAllStats(int number, bool undo)
+    void SetAllStats(int number)
     {
         float multiplier = (dataFile.numMisc > 0) ? dataFile.numMisc : -1 / dataFile.numMisc;
         dataFile.numCards = (int)Mathf.Floor(number * multiplier);
@@ -629,11 +617,10 @@ public class Card : UndoSource
         {
             MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
         }
-        if (!undo && step.player.InControl())
+        else if (!undo && step.player.InControl())
         {
             MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.listOfHand.Count });
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -645,11 +632,10 @@ public class Card : UndoSource
         {
             MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
         }
-        if (!undo && step.player.InControl())
+        else if (!undo && step.player.InControl())
         {
             MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.negCrowns });
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -661,11 +647,10 @@ public class Card : UndoSource
         {
             MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
         }
-        if (!undo && step.player.InControl())
+        else if (!undo && step.player.InControl())
         {
             MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.coins });
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { 1 });
-            MultiFunction(nameof(NextMethod), RpcTarget.All, new object[2] { logged, undo });
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 

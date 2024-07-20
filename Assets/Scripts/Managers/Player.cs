@@ -20,11 +20,12 @@ public class Player : UndoSource
     [Foldout("Prefabs", true)]
         [SerializeField] Button playerButtonPrefab;
 
-    [Foldout("Misc", true)]
+    [Foldout("Player info", true)]
         Canvas canvas;
         [ReadOnly] public int coins;
         [ReadOnly] public int negCrowns;
         [ReadOnly] public int playerPosition;
+        [ReadOnly] public Photon.Realtime.Player realTimePlayer { get; private set; }
 
     [Foldout("UI", true)]
         [ReadOnly] public List<Card> listOfHand = new List<Card>();
@@ -55,15 +56,13 @@ public class Player : UndoSource
         resignButton = GameObject.Find("Resign Button").GetComponent<Button>();
     }
 
-    void ResignTime()
-    {
-        Manager.instance.MultiFunction(nameof(Manager.instance.DisplayEnding), RpcTarget.All, new object[1] { this.playerPosition });
-    }
-
     private void Start()
     {
         if (PhotonNetwork.IsConnected)
+        {
             this.name = pv.Owner.NickName;
+            //Debug.Log($"{pv.Owner.NickName}: {pv.OwnerActorNr}");
+        }
     }
 
     protected override void AddToMethodDictionary(string methodName)
@@ -93,9 +92,14 @@ public class Player : UndoSource
         buttonText = newButton.transform.GetChild(0).GetComponent<TMP_Text>();
         newButton.onClick.AddListener(MoveScreen);
 
+        if (PhotonNetwork.IsConnected)
+            realTimePlayer = PhotonNetwork.PlayerList[pv.OwnerActorNr-1];
+
         if (InControl())
         {
-            resignButton.onClick.AddListener(ResignTime);
+            resignButton.onClick.AddListener(() =>
+            Manager.instance.MultiFunction(nameof(Manager.instance.DisplayEnding),
+            RpcTarget.All, new object[1] { this.playerPosition }));
             MoveScreen();
         }
     }
@@ -425,6 +429,7 @@ public class Player : UndoSource
         if (InControl() && !undo)
         {
             resolvedCards.Clear();
+            Manager.instance.MultiFunction(nameof(Manager.instance.InstructionsText), RpcTarget.Others, new object[1] { $"Waiting for {this.name}..." });
             ChooseAction();
         }
     }
@@ -455,7 +460,7 @@ public class Player : UndoSource
         {
             Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{this.name} resolves {card.name}.", logged });
             card.MultiFunction(nameof(card.AddInstructions), RpcTarget.All, new object[1] {this.playerPosition});
-            card.MultiFunction("NextMethod", RpcTarget.All, new object[2] { logged+1, false });
+            card.MultiFunction(nameof(Card.NextMethod), RpcTarget.All, new object[1] { logged+1 });
             Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
     }
@@ -484,47 +489,50 @@ public class Player : UndoSource
     void ResolveNextRobot(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
-        try
+        if (InControl())
         {
-            Card nextRobot = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
+            try
+            {
+                Card nextRobot = Manager.instance.cardIDs[(int)step.infoToRemember[0]];
 
-            if (undo)
-            {
-                resolvedCards.Remove(nextRobot);
-            }
-            else
-            {
-                resolvedCards.Add(nextRobot);
-                nextRobot.BatteryRPC(this, -1, logged);
-
-                Action handler = null;
-                handler = () =>
-                {
-                    nextRobot.eventCompletedCard -= handler;
-                    Log.instance.AddStepRPC(1, this, this, nameof(ChooseNextRobot), new object[0], 0);
-                    Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-                };
-                nextRobot.eventCompletedCard += handler;
-                ResolveCardInstructions(nextRobot, logged);
-            }
-        }
-        catch
-        {
-            Player nextPlayer = Manager.instance.playersInOrder[(playerPosition + 1) % Manager.instance.playersInOrder.Count];
-            if (InControl())
-            {
                 if (undo)
                 {
-                    if (nextPlayer.playerPosition == 0)
-                    {
-                        Manager.instance.MultiFunction(nameof(Manager.instance.ChangeTurnNumber), RpcTarget.All, new object[1] { Manager.instance.turnNumber - 1 });
-                    }
+                    resolvedCards.Remove(nextRobot);
                 }
                 else
                 {
-                    Manager.instance.PrintPlayerTurn(nextPlayer, Manager.instance.turnNumber + 1);
-                    Log.instance.AddStepRPC(1, nextPlayer, nextPlayer, nameof(StartTurn), new object[0], 0);
-                    Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                    resolvedCards.Add(nextRobot);
+                    nextRobot.BatteryRPC(this, -1, logged);
+
+                    Action handler = null;
+                    handler = () =>
+                    {
+                        nextRobot.eventCompletedCard -= handler;
+                        Log.instance.AddStepRPC(1, this, this, nameof(ChooseNextRobot), new object[0], 0);
+                        Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                    };
+                    nextRobot.eventCompletedCard += handler;
+                    ResolveCardInstructions(nextRobot, logged);
+                }
+            }
+            catch
+            {
+                Player nextPlayer = Manager.instance.playersInOrder[(playerPosition + 1) % Manager.instance.playersInOrder.Count];
+                {
+                    if (nextPlayer.playerPosition == 0)
+                    {
+                        if (undo)
+                        {
+                            Manager.instance.MultiFunction(nameof(Manager.instance.ChangeTurnNumber),
+                                RpcTarget.All, new object[1] { Manager.instance.turnNumber - 1 });
+                        }
+                        else
+                        {
+                            Manager.instance.PrintPlayerTurn(nextPlayer, Manager.instance.turnNumber + 1);
+                            Log.instance.AddStepRPC(1, nextPlayer, nextPlayer, nameof(StartTurn), new object[0], 0);
+                            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                        }
+                    }
                 }
             }
         }

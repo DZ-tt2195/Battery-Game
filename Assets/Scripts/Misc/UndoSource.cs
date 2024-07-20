@@ -17,20 +17,26 @@ public class UndoSource : MonoBehaviour
             AddToMethodDictionary(methodName);
 
         MethodInfo info = methodDictionary[methodName];
-        if (info.ReturnType == typeof(IEnumerator))
-        {
-            if (PhotonNetwork.IsConnected)
-                pv.RPC(info.Name, affects, parameters);
-            else
-                StartCoroutine((IEnumerator)info.Invoke(this, parameters));
-        }
+        if (PhotonNetwork.IsConnected)
+            pv.RPC(info.Name, affects, parameters);
+        else if (info.ReturnType == typeof(IEnumerator))
+            StartCoroutine((IEnumerator)info.Invoke(this, parameters));
         else if (info.ReturnType == typeof(void))
-        {
-            if (PhotonNetwork.IsConnected)
-                pv.RPC(info.Name, affects, parameters);
-            else
-                info.Invoke(this, parameters);
-        }
+            info.Invoke(this, parameters);
+    }
+
+    public void MultiFunction(string methodName, Photon.Realtime.Player specificPlayer, object[] parameters = null)
+    {
+        if (!methodDictionary.ContainsKey(methodName))
+            AddToMethodDictionary(methodName);
+
+        MethodInfo info = methodDictionary[methodName];
+        if (PhotonNetwork.IsConnected)
+            pv.RPC(info.Name, specificPlayer, parameters);
+        else if (info.ReturnType == typeof(IEnumerator))
+            StartCoroutine((IEnumerator)info.Invoke(this, parameters));
+        else if (info.ReturnType == typeof(void))
+            info.Invoke(this, parameters);
     }
 
     protected virtual void AddToMethodDictionary(string methodName)
