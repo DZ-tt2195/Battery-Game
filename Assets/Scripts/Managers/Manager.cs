@@ -57,7 +57,7 @@ public class Manager : UndoSource
         MethodInfo method = typeof(Manager).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         try
         {
-            if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
+            if (method != null && method.ReturnType == typeof(void))
                 methodDictionary.Add(methodName, method);
         }
         catch
@@ -210,15 +210,28 @@ public class Manager : UndoSource
         Log.instance.MultiFunction(nameof(Log.instance.AddText), RpcTarget.All, new object[2] { $"{nextPlayer.name}'s Turn", 0 });
     }
 
+    public void InstructionsRPC(int playerPosition, string text)
+    {
+        for (int i = 0; i<playersInOrder.Count; i++)
+        {
+            Photon.Realtime.Player player = playersInOrder[playerPosition].realTimePlayer;
+            if (i == playerPosition)
+                pv.RPC(nameof(DisplayInstruction), player, text);
+            else
+                pv.RPC(nameof(DisplayInstruction), player, $"Waiting for {playersInOrder[playerPosition].name}");
+        }
+        instructions.text = KeywordTooltip.instance.EditText(text);
+    }
+
     [PunRPC]
-    public void InstructionsText(string text)
+    void DisplayInstruction(string text)
     {
         instructions.text = KeywordTooltip.instance.EditText(text);
     }
 
     #endregion
 
-#region Game End
+    #region Game End
 
     [PunRPC]
     public void DisplayEnding(int resignPosition)

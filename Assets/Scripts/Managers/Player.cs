@@ -70,7 +70,7 @@ public class Player : UndoSource
         MethodInfo method = typeof(Player).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         try
         {
-            if (method != null && method.ReturnType == typeof(void) || method.ReturnType == typeof(IEnumerator))
+            if (method != null && method.ReturnType == typeof(void))
                 methodDictionary.Add(methodName, method);
         }
         catch
@@ -429,7 +429,6 @@ public class Player : UndoSource
         if (InControl() && !undo)
         {
             resolvedCards.Clear();
-            Manager.instance.MultiFunction(nameof(Manager.instance.InstructionsText), RpcTarget.Others, new object[1] { $"Waiting for {this.name}..." });
             ChooseAction();
         }
     }
@@ -439,7 +438,7 @@ public class Player : UndoSource
         Log.instance.AddStepRPC(1, this, this, nameof(ChooseCardFromPopup),
             ConvertCardList(Manager.instance.listOfActions, new object[2] { false, nameof(ResolveAction) }), 0);
         Log.instance.MultiFunction(nameof(Log.instance.CurrentStepNeedsDecision), RpcTarget.All, new object[1] { this.playerPosition });
-        Manager.instance.InstructionsText("Choose an action to use.");
+        Manager.instance.InstructionsRPC(this.playerPosition, "Choose an Action.");
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
@@ -480,7 +479,7 @@ public class Player : UndoSource
 
             Log.instance.AddStepRPC(1, this, this, nameof(ChooseCardFromList),
                 ConvertCardList(availableOptions, new object[2] { false, nameof(ResolveNextRobot) }), 0);
-            Manager.instance.InstructionsText("Choose the next robot to resolve.");
+            Manager.instance.InstructionsRPC(this.playerPosition, "Choose your next Robot.");
             Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         }
     }
@@ -507,11 +506,11 @@ public class Player : UndoSource
                     Action handler = null;
                     handler = () =>
                     {
-                        nextRobot.eventCompletedCard -= handler;
+                        nextRobot.eventCardDone -= handler;
                         Log.instance.AddStepRPC(1, this, this, nameof(ChooseNextRobot), new object[0], 0);
                         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
                     };
-                    nextRobot.eventCompletedCard += handler;
+                    nextRobot.eventCardDone += handler;
                     ResolveCardInstructions(nextRobot, logged);
                 }
             }
@@ -542,13 +541,12 @@ public class Player : UndoSource
 
 #region Decisions
 
-    public void ChooseCard(List<Card> possibleCards, bool optional, int logged, string changeInstructions)
+    public void GenericChooseCard(List<Card> possibleCards, bool optional, int logged, string changeInstructions)
     {
         Log.instance.AddStepRPC(1, this, this, nameof(ChooseCardFromList),
             ConvertCardList(possibleCards, new object[2] { optional, "" }), logged);
-        if (possibleCards.Count >= 2 || optional)
-            Log.instance.MultiFunction(nameof(Log.instance.CurrentStepNeedsDecision), RpcTarget.All, new object[1] { this.playerPosition });
-        Manager.instance.InstructionsText(changeInstructions);
+
+        Manager.instance.InstructionsRPC(this.playerPosition, changeInstructions);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 

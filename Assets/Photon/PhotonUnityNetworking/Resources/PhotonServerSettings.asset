@@ -122,6 +122,19 @@ MonoBehaviour:
   - NextStepNeedsDecision
   - CurrentStepNeedsDecision
   - ChangeTurnNumber
+  - SetToPlayArea
+  - DisplayInstruction
+  - IfElseCompleted
+  - InstructionsComplete
+  - BatteryOrLess
+  - BatteryOrMore
+  - DoNothing
+  - HandOrLess
+  - HandOrMore
+  - MoneyOrLess
+  - MoneyOrMore
+  - NegCrownOrLess
+  - NegCrownOrMore
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0
