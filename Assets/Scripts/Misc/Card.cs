@@ -45,8 +45,6 @@ public class Card : UndoSource
         public event Action eventCardDone;
         bool ifElse;
         event Action eventIfElse;
-        int chooseOne;
-        event Action eventChooseOne;
 
     #endregion
 
@@ -290,11 +288,11 @@ public class Card : UndoSource
 
             if (splitIntoChoices != null)
             {
-                ResolveChooseOne(nextMethod, splitIntoChoices, logged);
+                ResolveChooseOne(nextMethod.player, splitIntoChoices, logged);
             }
             else if (splitIntoIfElse != null)
             {
-                ResolveIfElse(nextMethod, splitIntoIfElse, logged);
+                ResolveIfElse(nextMethod.player, splitIntoIfElse, logged);
             }
             else
             {
@@ -312,7 +310,6 @@ public class Card : UndoSource
     public void ResetEvent()
     {
         eventCardDone = null;
-        eventChooseOne = null;
         eventIfElse = null;
     }
 
@@ -331,7 +328,7 @@ public class Card : UndoSource
         eventCardDone?.Invoke();
     }
 
-    void ResolveIfElse(PlayerMethod nextMethod, string[] elseIfChain, int logged)
+    void ResolveIfElse(Player player, string[] elseIfChain, int logged)
     {
         string boolean = elseIfChain[0];
         Action handler = null;
@@ -340,22 +337,22 @@ public class Card : UndoSource
             eventIfElse -= handler;
             if (ifElse)
             {
-                Log.instance.AddStepRPC(1, nextMethod.player, this, elseIfChain[1], new object[0], logged);
+                Log.instance.AddStepRPC(1, player, this, elseIfChain[1], new object[0], logged);
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
             else if (elseIfChain.Length == 2)
             {
-                Log.instance.AddStepRPC(1, nextMethod.player, this, elseIfChain[2], new object[0], logged);
+                Log.instance.AddStepRPC(1, player, this, elseIfChain[2], new object[0], logged);
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
             else
             {
-                Log.instance.AddStepRPC(1, nextMethod.player, this, nameof(DoNothing), new object[0], logged);
+                Log.instance.AddStepRPC(1, player, this, nameof(DoNothing), new object[0], logged);
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
         };
         eventIfElse += handler;
-        Log.instance.AddStepRPC(1, nextMethod.player, this, elseIfChain[0], new object[0], logged);
+        Log.instance.AddStepRPC(1, player, this, elseIfChain[0], new object[0], logged);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
@@ -366,34 +363,54 @@ public class Card : UndoSource
         eventIfElse?.Invoke();
     }
 
-    void ResolveChooseOne(PlayerMethod nextMethod, string[] chooseChain, int logged)
+    void ResolveChooseOne(Player player, string[] chooseChain, int logged)
     {
-        /*
-        string boolean = elseIfChain[0];
+        object[] listOfChoices = new object[chooseChain.Length];
+        for (int i = 0; i<chooseChain.Length; i++)
+        {
+            string next = chooseChain[i];
+            switch (next)
+            {
+                case nameof(DrawCards):
+                    listOfChoices[i] = $"+{dataFile.numCards} Card";
+                    break;
+                case nameof(MandatoryDiscard):
+                    listOfChoices[i] = $"Discard 1 Card";
+                    break;
+                case nameof(GainCoins):
+                    listOfChoices[i] = $"+{dataFile.numCoins} Coin";
+                    break;
+                case nameof(LoseCoins):
+                    listOfChoices[i] = $"-{dataFile.numCoins} Coin";
+                    break;
+                case nameof(AddBattery):
+                    listOfChoices[i] = $"+{dataFile.numBatteries} Battery";
+                    break;
+                case nameof(RemoveBattery):
+                    listOfChoices[i] = $"-{dataFile.numBatteries} Battery";
+                    break;
+                case nameof(TakeNeg):
+                    listOfChoices[i] = $"Take -{dataFile.numCrowns} Neg Crown";
+                    break;
+                case nameof(RemoveNeg):
+                    listOfChoices[i] = $"Remove -{dataFile.numCrowns} Neg Crown";
+                    break;
+                case nameof(PlayCard):
+                    listOfChoices[i] = $"Play 1 Card";
+                    break;
+            }
+        }
+
         Action handler = null;
         handler = () =>
         {
-            eventCompletedIfElse -= handler;
-            if (ifElse)
-            {
-                Log.instance.AddStepRPC(1, nextMethod.player, this, elseIfChain[1], new object[0], logged);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-            }
-            else if (elseIfChain.Length == 2)
-            {
-                Log.instance.AddStepRPC(1, nextMethod.player, this, elseIfChain[2], new object[0], logged);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-            }
-            else
-            {
-                Log.instance.AddStepRPC(1, nextMethod.player, this, nameof(DoNothing), new object[0], logged);
-                Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-            }
+            player.eventChosenCard -= handler;
+            Log.instance.AddStepRPC(1, player, this, chooseChain[player.choice], new object[0], logged);
+            Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
         };
-        eventCompletedIfElse += handler;
-        Log.instance.AddStepRPC(1, nextMethod.player, this, elseIfChain[0], new object[0], logged);
-        Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
-        */
+
+        player.eventChosenCard += handler;
+        player.GenericChooseOption(chooseChain, false, logged, "Choose an option.");
     }
 
     string[] SplitUpIfElse(string methodGroup)
@@ -538,7 +555,7 @@ public class Card : UndoSource
     }
 
     [PunRPC]
-    void AddBatteryToOther(int logged, bool undo)
+    void AddBattery(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (undo)
@@ -559,13 +576,12 @@ public class Card : UndoSource
 
             step.player.eventChosenCard += handler;
             List<Card> otherCards = step.player.listOfPlay;
-            otherCards.Remove(this);
             step.player.GenericChooseCard(otherCards, false, logged, $"Add {dataFile.numBatteries} Battery to a card.");
         }
     }
 
     [PunRPC]
-    void RemoveBatteryFromOther(int logged, bool undo)
+    void RemoveBattery(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (undo)
@@ -586,23 +602,7 @@ public class Card : UndoSource
 
             step.player.eventChosenCard += handler;
             List<Card> otherCards = step.player.listOfPlay;
-            otherCards.Remove(this);
-            step.player.GenericChooseCard(otherCards, false, logged, $"Add {dataFile.numBatteries} Battery to a card.");
-        }
-    }
-
-    [PunRPC]
-    void AddBatteryToSelf(int logged, bool undo)
-    {
-        NextStep step = Log.instance.GetCurrentStep();
-        if (undo)
-        {
-            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
-        }
-        else if (!undo && step.player.InControl())
-        {
-            this.BatteryRPC(step.player, dataFile.numBatteries, logged);
-            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
+            step.player.GenericChooseCard(otherCards, false, logged, $"Remove {dataFile.numBatteries} Battery from a card.");
         }
     }
 

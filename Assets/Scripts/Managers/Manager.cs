@@ -216,9 +216,9 @@ public class Manager : UndoSource
         {
             Photon.Realtime.Player player = playersInOrder[playerPosition].realTimePlayer;
             if (i == playerPosition)
-                pv.RPC(nameof(DisplayInstruction), player, text);
+                MultiFunction(nameof(DisplayInstruction), player, new object[1] { text });
             else
-                pv.RPC(nameof(DisplayInstruction), player, $"Waiting for {playersInOrder[playerPosition].name}");
+                MultiFunction(nameof(DisplayInstruction), player, new object[1] { $"Waiting for {playersInOrder[playerPosition].name}" });
         }
         instructions.text = KeywordTooltip.instance.EditText(text);
     }

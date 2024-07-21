@@ -52,7 +52,7 @@
       "",
       "",
       "You",
-      "AddBatteryToOther/AddBatteryToOther/ResolveRobots",
+      "AddBattery/AddBattery/ResolveRobots",
       "",
       "",
       "",
