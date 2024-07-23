@@ -214,7 +214,6 @@ public class Player : UndoSource
                 StartInHand(newCard, 0.3f);
                 cardList += $"{newCard.name}{(i < step.infoToRemember.Length - 1 ? ", " : ".")}";
             }
-
             Log.instance.AddText($"{this.name} draws {step.infoToRemember.Length} Card.", logged);
         }
         SortHand();
@@ -246,7 +245,7 @@ public class Player : UndoSource
             float difference = (listOfHand.Count > 7) ? (-250 - (150 * multiplier)) * -2 / (listOfHand.Count - 1) : 100 + (50 * multiplier);
 
             Vector2 newPosition = new(startingX + difference * i, -535 * canvas.transform.localScale.x);
-            StartCoroutine(nextCard.MoveCard(newPosition, nextCard.transform.localEulerAngles, 0.3f));
+            StartCoroutine(nextCard.MoveCard(newPosition, nextCard.transform.localEulerAngles, 0.25f));
         }
 
         if (InControl())
@@ -606,6 +605,7 @@ public class Player : UndoSource
             MadeDecision(null, CarryVariables.instance.undecided);
             bool optional = (bool)step.infoToRemember[0];
             Popup popup = null;
+            IEnumerator haveCardsEnabled = KeepCardsOn(step.infoToRemember);
 
             if (optional)
             {
@@ -616,21 +616,11 @@ public class Player : UndoSource
                 popup.WaitForChoice();
             }
 
-            for (int i = 1; i < step.infoToRemember.Length; i++)
-            {
-                Card nextCard = Manager.instance.cardIDs[(int)step.infoToRemember[i]];
-                int buttonNumber = i;
-
-                nextCard.button.onClick.RemoveAllListeners();
-                nextCard.button.interactable = true;
-                nextCard.button.onClick.AddListener(() => MadeDecision(nextCard, buttonNumber));
-                nextCard.border.gameObject.SetActive(true);
-            }
-
             Action handler = null;
             handler = () =>
             {
                 eventChosenCard -= handler;
+                StopCoroutine(haveCardsEnabled);
                 for (int i = 1; i < step.infoToRemember.Length; i++)
                 {
                     Card nextCard = Manager.instance.cardIDs[(int)step.infoToRemember[i]];
@@ -644,10 +634,31 @@ public class Player : UndoSource
             };
             eventChosenCard += handler;
 
-            if (step.infoToRemember.Length == 1)
+            if (step.infoToRemember.Length == 1 && !optional)
                 MadeDecision(null, -1);
-            else if (step.infoToRemember.Length == 2)
-                MadeDecision(Manager.instance.cardIDs[(int)step.infoToRemember[2]], 1);
+            else if (step.infoToRemember.Length == 2 && !optional)
+                MadeDecision(Manager.instance.cardIDs[(int)step.infoToRemember[1]], 1);
+            else
+                StartCoroutine(haveCardsEnabled);
+        }
+    }
+
+    IEnumerator KeepCardsOn(object[] infoToRemember)
+    {
+        for (int i = 0; i<4; i++)
+        {
+            for (int j = 1; j < infoToRemember.Length; j++)
+            {
+                Card nextCard = Manager.instance.cardIDs[(int)infoToRemember[j]];
+                int buttonNumber = j;
+
+                nextCard.button.onClick.RemoveAllListeners();
+                nextCard.button.interactable = true;
+                nextCard.button.onClick.AddListener(() => MadeDecision(nextCard, buttonNumber));
+                nextCard.border.gameObject.SetActive(true);
+            }
+
+            yield return new WaitForSeconds(0.5f);
         }
     }
 
@@ -689,7 +700,9 @@ public class Player : UndoSource
             popup.StatsSetup(this, "Choices", Vector3.zero);
 
             for (int i = 1; i < step.infoToRemember.Length; i++)
+            {
                 popup.AddTextButton((string)step.infoToRemember[i]);
+            }
 
             Action handler = null;
             handler = () =>

@@ -281,6 +281,7 @@ public class Log : MonoBehaviour
         foreach (Player player in Manager.instance.playersInOrder)
         {
             player.ResetEvent();
+            player.StopAllCoroutines();
         }
 
         Popup[] allPopups = FindObjectsOfType<Popup>();

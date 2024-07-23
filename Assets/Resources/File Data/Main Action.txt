@@ -46,7 +46,7 @@
     ],
     [
       "Recharge",
-      "Do twice: Add 1 Battery to 1 Card.",
+      "Do twice: Add 1 Battery.",
       "4",
       "",
       "",

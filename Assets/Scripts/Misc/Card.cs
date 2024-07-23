@@ -8,6 +8,7 @@ using UnityEngine.UI;
 using Photon.Pun;
 using TMPro;
 using System;
+using Photon.Realtime;
 
 public class PlayerMethod
 {
@@ -351,6 +352,7 @@ public class Card : UndoSource
                 Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
             }
         };
+
         eventIfElse += handler;
         Log.instance.AddStepRPC(1, player, this, elseIfChain[0], new object[0], logged);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
@@ -410,7 +412,7 @@ public class Card : UndoSource
         };
 
         player.eventChosenCard += handler;
-        player.GenericChooseOption(chooseChain, false, logged, "Choose an option.");
+        player.GenericChooseOption(listOfChoices, false, logged, "Choose an option.");
     }
 
     string[] SplitUpIfElse(string methodGroup)
@@ -539,18 +541,34 @@ public class Card : UndoSource
         }
         else if (!undo && step.player.InControl())
         {
+            int currentCount = (step.infoToRemember.Length == 0) ? 0 : (int)step.infoToRemember[0];
+
             Action handler = null;
             handler = () =>
             {
                 step.player.eventChosenCard -= handler;
                 if (step.player.chosenCard != null)
+                {
                     step.player.DiscardRPC(step.player.chosenCard, logged);
+                    currentCount++;
 
-                MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
+                    if (currentCount == dataFile.numCards)
+                    {
+                        MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
+                    }
+                    else
+                    {
+                        Log.instance.AddStepRPC(1, step.player, this, nameof(MandatoryDiscard), new object[1] { currentCount }, logged);
+                        Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                    }
+                }
+                else
+                {
+                    MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
+                }
             };
             step.player.eventChosenCard += handler;
-            List<Card> canDiscard = step.player.listOfHand;
-            step.player.GenericChooseCard(canDiscard, false, logged, $"Discard a card.");
+            step.player.GenericChooseCard(step.player.listOfHand, false, logged, $"Discard a card ({dataFile.numCards-currentCount} more)");
         }
     }
 
@@ -605,30 +623,6 @@ public class Card : UndoSource
             step.player.GenericChooseCard(otherCards, false, logged, $"Remove {dataFile.numBatteries} Battery from a card.");
         }
     }
-
-    /*
-    [PunRPC]
-    void MoveBattery( int logged, bool undo)
-    {
-        yield return null;
-        if (player.listOfPlay.Count >= 2)
-        {
-            Manager.instance.instructions.text = $"Remove 1 battery from a robot in play.";
-            player.ChooseCard(this, player.listOfPlay.Where(card => card.batteries > 0).ToList(), false, logged);
-            Card firstCard = player.chosenCard;
-            if (firstCard != null)
-            {
-                firstCard.BatteryRPC(player, -1, logged);
-
-                Manager.instance.instructions.text = $"Add 1 battery to a robot in play.";
-                player.ChooseCard(this, player.listOfPlay.Where(card => card != this).ToList(), false, logged);
-                if (player.chosenCard != null)
-                    player.chosenCard.BatteryRPC(player, 1, logged);
-            }
-        }
-        //MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-    }
-    */
 
     [PunRPC]
     void PlayCard(int logged, bool undo)
@@ -759,24 +753,65 @@ public class Card : UndoSource
         }
     }
 
-#endregion
+    [PunRPC]
+    void YesOrNo(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            Action handler = null;
+            handler = () =>
+            {
+                step.player.eventChosenCard -= handler;
+                MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
+                    new object[1] { step.player.choice == 0 });
+            };
 
-/*
+            step.player.eventChosenCard += handler;
+            step.player.GenericChooseOption(new object[2] {"Yes", "No"}, false, logged, $"Resolve {this.name}?");
+        }
+    }
 
-               void YesOrNo(Player player, int logged, bool undo)
-               {
-                   Popup popup = Instantiate(CarryVariables.instance.textPopup);
-                   popup.transform.SetParent(GameObject.Find("Canvas").transform);
-                   popup.StatsSetup(this.name, Vector3.zero);
-                   popup.AddTextButton("Yes");
-                   popup.AddTextButton("No");
+    [PunRPC]
+    void OptionalDiscard(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            int currentCount = (step.infoToRemember.Length == 0) ? 0 : (int)step.infoToRemember[0];
 
-                   yield return popup.WaitForChoice();
-                   if (popup.chosenButton == 1)
-                       MultiFunction(nameof(StopInstructions), RpcTarget.All);
-                   MultiFunction(nameof(FinishedInstructions), RpcTarget.All);
-               }
-                   */
+            Action handler = null;
+            handler = () =>
+            {
+                step.player.eventChosenCard -= handler;
+                if (step.player.chosenCard != null)
+                {
+                    currentCount++;
+                    step.player.DiscardRPC(step.player.chosenCard, logged);
+
+                    if (currentCount == dataFile.numCards)
+                    {
+                        MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
+                        new object[1] { true });
+                    }
+                    else
+                    {
+                        Log.instance.AddStepRPC(1, step.player, this, nameof(OptionalDiscard), new object[1] { currentCount }, logged);
+                        Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
+                    }
+                }
+                else
+                {
+                    MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
+                    new object[1] { false });
+                }
+            }; 
+            step.player.eventChosenCard += handler;
+            step.player.GenericChooseCard(step.player.listOfHand, currentCount == 0, logged, $"Discard a card? ({dataFile.numCards - currentCount} more)");
+        }
+    }
+
+    #endregion
 
 #region Setters
 

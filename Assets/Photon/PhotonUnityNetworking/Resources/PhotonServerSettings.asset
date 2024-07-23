@@ -135,6 +135,11 @@ MonoBehaviour:
   - MoneyOrMore
   - NegCrownOrLess
   - NegCrownOrMore
+  - ChooseCardOnScreen
+  - ChooseOptionFromPopup
+  - AddBattery
+  - RemoveBattery
+  - YesOrNo
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0
