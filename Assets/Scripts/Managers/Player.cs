@@ -546,7 +546,6 @@ public class Player : UndoSource
     {
         Log.instance.AddStepRPC(1, this, this, nameof(ChooseCardOnScreen),
             ConvertCardList(possibleCards, new object[1] { optional }), logged);
-
         Manager.instance.InstructionsRPC(this.playerPosition, changeInstructions);
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
@@ -645,7 +644,8 @@ public class Player : UndoSource
 
     IEnumerator KeepCardsOn(object[] infoToRemember)
     {
-        for (int i = 0; i<4; i++)
+        float elapsedTime = 0f;
+        while (elapsedTime < 1.5f)
         {
             for (int j = 1; j < infoToRemember.Length; j++)
             {
@@ -657,8 +657,8 @@ public class Player : UndoSource
                 nextCard.button.onClick.AddListener(() => MadeDecision(nextCard, buttonNumber));
                 nextCard.border.gameObject.SetActive(true);
             }
-
-            yield return new WaitForSeconds(0.5f);
+            elapsedTime += Time.deltaTime;
+            yield return null;
         }
     }
 

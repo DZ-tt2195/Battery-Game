@@ -231,7 +231,7 @@ public class Manager : UndoSource
 
     #endregion
 
-    #region Game End
+#region Game End
 
     [PunRPC]
     public void DisplayEnding(int resignPosition)
