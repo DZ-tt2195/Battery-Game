@@ -286,6 +286,16 @@ public class Manager : UndoSource
         }
     }
 
+    public bool PlayerWon()
+    {
+        List<Player> playerScoresInOrder = playersInOrder.OrderByDescending(player => player.CalculateScore()).ToList();
+        bool topScore = (playerScoresInOrder[0].CalculateScore() >= 20);
+        bool notTie = (playerScoresInOrder.Count == 1) ? true :
+            playerScoresInOrder[0].CalculateScore() > playerScoresInOrder[1].CalculateScore();
+
+        return (topScore && notTie);
+    }
+
 #endregion
 
 }

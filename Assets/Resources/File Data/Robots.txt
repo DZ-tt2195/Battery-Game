@@ -75,6 +75,21 @@
       "0"
     ],
     [
+      "Card Eater",
+      "You may discard 1 Card to gain 4 Coin.",
+      "2",
+      "2",
+      "1",
+      "2",
+      "You",
+      "IfElse(OptionalDiscard|GainCoins)",
+      "1",
+      "4",
+      "",
+      "",
+      "0"
+    ],
+    [
       "Battery Gainer",
       "Add 1 Battery.",
       "2",
@@ -103,6 +118,36 @@
       "1",
       "",
       "0"
+    ],
+    [
+      "Team Player",
+      "Gain 1 Coin per Card you have in play.",
+      "5",
+      "5",
+      "2",
+      "0",
+      "You",
+      "SetToPlayArea/GainCoins",
+      "",
+      "",
+      "",
+      "",
+      "1"
+    ],
+    [
+      "Robot Doctor",
+      "You may pay 5 Coin to remove -2 Neg Crown.",
+      "3",
+      "5",
+      "2",
+      "1",
+      "You",
+      "IfElse(OptionalPayCoins|RemoveNeg)",
+      "",
+      "5",
+      "2",
+      "",
+      "1"
     ],
     [
       "Low Draw",
@@ -162,6 +207,21 @@
       "",
       "",
       "1",
+      "0"
+    ],
+    [
+      "Charging Station",
+      "Add 2 Battery.",
+      "4",
+      "12",
+      "3",
+      "2",
+      "You",
+      "AddBattery",
+      "",
+      "",
+      "",
+      "2",
       "0"
     ]
   ]
