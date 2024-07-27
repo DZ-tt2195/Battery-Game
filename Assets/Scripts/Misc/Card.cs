@@ -412,7 +412,7 @@ public class Card : UndoSource
         };
 
         player.eventChosenCard += handler;
-        player.GenericChooseOption(listOfChoices, false, logged, "Choose an option.");
+        player.GenericChoose(listOfChoices, false, logged, "Choose an option.");
     }
 
     string[] SplitUpIfElse(string methodGroup)
@@ -582,7 +582,7 @@ public class Card : UndoSource
                 }
             };
             step.player.eventChosenCard += handler;
-            step.player.GenericChooseCard(step.player.listOfHand, false, logged, $"Discard a card ({dataFile.numCards-currentCount} more)");
+            step.player.GenericChoose(step.player.listOfHand, false, logged, $"Discard a card ({dataFile.numCards-currentCount} more)");
         }
     }
 
@@ -607,8 +607,24 @@ public class Card : UndoSource
             };
 
             step.player.eventChosenCard += handler;
-            List<Card> otherCards = step.player.listOfPlay;
-            step.player.GenericChooseCard(otherCards, false, logged, $"Add {dataFile.numBatteries} Battery to a card.");
+            step.player.GenericChoose(step.player.listOfPlay, false, logged,
+                $"Add {dataFile.numBatteries} Battery to a card.");
+        }
+    }
+
+    [PunRPC]
+    void AddBatteryToChosen(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
+        {
+            if (step.player.chosenCard != null)
+                step.player.chosenCard.BatteryRPC(step.player, dataFile.numBatteries, logged);
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -633,7 +649,24 @@ public class Card : UndoSource
             };
 
             step.player.eventChosenCard += handler;
-            step.player.GenericChooseCard(step.player.listOfPlay.Where(card => card.batteries>0).ToList(), false, logged, $"Remove {dataFile.numBatteries} Battery from a card.");
+            step.player.GenericChoose(step.player.listOfPlay.Where(card => card.batteries>0).ToList(),
+                false, logged, $"Remove {dataFile.numBatteries} Battery from a card.");
+        }
+    }
+
+    [PunRPC]
+    void RemoveBatteryFromChosen(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (undo)
+        {
+            MultiFunction(nameof(MoveTracker), RpcTarget.All, new object[1] { -1 });
+        }
+        else if (!undo && step.player.InControl())
+        {
+            if (step.player.chosenCard != null)
+                step.player.chosenCard.BatteryRPC(step.player, -1 * dataFile.numBatteries, logged);
+            MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }
 
@@ -660,8 +693,9 @@ public class Card : UndoSource
                 MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
             };
             step.player.eventChosenCard += handler;
-            List<Card> possibleCards = step.player.listOfHand.Where(card => card.dataFile.coinCost <= step.player.coins).ToList();
-            step.player.GenericChooseCard(possibleCards, true, logged, $"Play a card?");
+            step.player.GenericChoose(step.player.listOfHand.Where
+                (card => card.dataFile.coinCost <= step.player.coins).ToList(),
+                true, logged, $"Play a card?");
         }
     }
 
@@ -734,32 +768,54 @@ public class Card : UndoSource
     }
 
     [PunRPC]
-    void BatteryOrMore(int logged, bool undo)
+    void ThisBatteryOrMore(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (!undo && step.player.InControl())
         {
-            int countBatteries = 0;
-            foreach (Card card in step.player.listOfPlay)
-                countBatteries += card.batteries;
-
             MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
-                new object[1] { countBatteries >= dataFile.numMisc });
+                new object[1] { this.batteries >= dataFile.numMisc });
         }
     }
 
     [PunRPC]
-    void BatteryOrLess(int logged, bool undo)
+    void ThisBatteryOrLess(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (!undo && step.player.InControl())
         {
-            int countBatteries = 0;
+            MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
+                new object[1] { this.batteries <= dataFile.numMisc });
+        }
+    }
+
+    [PunRPC]
+    void TotalBatteryOrMore(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            int totalBatteries = 0;
             foreach (Card card in step.player.listOfPlay)
-                countBatteries += card.batteries;
+                totalBatteries += card.batteries;
 
             MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
-                new object[1] { countBatteries <= dataFile.numMisc });
+                new object[1] { totalBatteries >= dataFile.numMisc });
+        }
+    }
+
+    [PunRPC]
+    void TotalBatteryOrLess(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            int totalBatteries = 0;
+            foreach (Card card in step.player.listOfPlay)
+                totalBatteries += card.batteries;
+
+            MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
+                new object[1] { totalBatteries <= dataFile.numMisc });
         }
     }
 
@@ -778,8 +834,7 @@ public class Card : UndoSource
             };
 
             step.player.eventChosenCard += handler;
-            step.player.GenericChooseOption(new object[2] {"Yes", "No"}, false, logged,
-                $"Resolve {this.name}?");
+            step.player.GenericChoose(new object[2] {"Yes", "No"}, false, logged, $"Resolve {this.name}?");
         }
     }
 
@@ -825,7 +880,7 @@ public class Card : UndoSource
                     }
                 };
                 step.player.eventChosenCard += handler;
-                step.player.GenericChooseCard(step.player.listOfHand, currentCount == 0, logged,
+                step.player.GenericChoose(step.player.listOfHand, currentCount == 0, logged,
                     $"Discard a card? ({dataFile.numCards - currentCount} more)");
             }
         }
@@ -848,7 +903,7 @@ public class Card : UndoSource
                 new object[1] { step.player.choice == 0 });
             };
             step.player.eventChosenCard += handler;
-            step.player.GenericChooseOption(new object[2] {"Yes", "No"}, true, logged,
+            step.player.GenericChoose(new object[2] {"Yes", "No"}, true, logged,
                 $"Take -{dataFile.numCrowns} Neg Crown?");
         }
     }
@@ -877,7 +932,7 @@ public class Card : UndoSource
                     new object[1] { step.player.choice == 0 });
                 };
                 step.player.eventChosenCard += handler;
-                step.player.GenericChooseOption(new object[2] { "Yes", "No" }, true, logged,
+                step.player.GenericChoose(new object[2] { "Yes", "No" }, true, logged,
                     $"Pay {dataFile.numCoins} Coin?");
             }
         }
@@ -900,7 +955,7 @@ public class Card : UndoSource
                 new object[1] { step.player.choice >= 0 });
             };
             step.player.eventChosenCard += handler;
-            step.player.GenericChooseCard(step.player.listOfPlay.Where
+            step.player.GenericChoose(step.player.listOfPlay.Where
                 (card => card.batteries >= dataFile.numBatteries).ToList(), true, logged,
                 $"Remove {dataFile.numBatteries} Battery from a card?");
         }
@@ -990,11 +1045,11 @@ public class Card : UndoSource
         }
         else if (!undo && step.player.InControl())
         {
-            int numBatteries = 0;
+            int totalBatteries = 0;
             foreach (Card card in step.player.listOfPlay)
-                numBatteries += card.batteries;
+                totalBatteries += card.batteries;
 
-            MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { numBatteries });
+            MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { totalBatteries });
             MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }

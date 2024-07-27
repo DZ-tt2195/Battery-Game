@@ -143,7 +143,7 @@ public class DownloadSheets : MonoBehaviour
             nextData.startingBatteries = StringToInt(data[i][cardSheetsColumns[nameof(CardData.startingBatteries)]]);
 
             string nextRow = data[i][cardSheetsColumns[nameof(CardData.playInstructions)]];
-            nextData.playInstructions = (nextRow == "") ? new string[1] { "None" } : SpliceString(nextRow, '-');
+            nextData.playInstructions = (nextRow == "") ? new string[1] { "None" } : SpliceString(nextRow.Replace("\"", ""), '-');
 
             nextData.numCards = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numCards)]]);
             nextData.numCoins = StringToInt(data[i][cardSheetsColumns[nameof(CardData.numCoins)]]);

@@ -16,7 +16,7 @@
     ],
     [
       "Brainstorm",
-      "Draw 2 Card.",
+      "\"+2 Card.\"",
       "4",
       "",
       "",
@@ -31,7 +31,7 @@
     ],
     [
       "Stockpile",
-      "Gain 4 Coin.",
+      "\"+4 Coin.\"",
       "4",
       "",
       "",
@@ -46,7 +46,7 @@
     ],
     [
       "Recharge",
-      "Do twice: Add 1 Battery.",
+      "\"+1 Battery, +1 Battery.\"",
       "4",
       "",
       "",

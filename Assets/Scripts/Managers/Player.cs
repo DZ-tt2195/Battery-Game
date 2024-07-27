@@ -410,7 +410,7 @@ public class Player : UndoSource
 
     public int CalculateScore()
     {
-        int score = negCrowns;
+        int score = -1*negCrowns;
         foreach (Card card in listOfPlay)
             score += card.dataFile.scoringCrowns;
         return score;
@@ -545,7 +545,7 @@ public class Player : UndoSource
 
 #region Decisions
 
-    public void GenericChooseCard(List<Card> possibleCards, bool optional, int logged, string changeInstructions)
+    public void GenericChoose(List<Card> possibleCards, bool optional, int logged, string changeInstructions)
     {
         Log.instance.AddStepRPC(1, this, this, nameof(ChooseCardOnScreen),
             ConvertCardList(possibleCards, new object[1] { optional }), logged);
@@ -553,7 +553,7 @@ public class Player : UndoSource
         Log.instance.MultiFunction(nameof(Log.instance.Continue), RpcTarget.All);
     }
 
-    public void GenericChooseOption(object[] possibleChoices, bool optional, int logged, string changeInstructions)
+    public void GenericChoose(object[] possibleChoices, bool optional, int logged, string changeInstructions)
     {
         object[] array = new object[1 + possibleChoices.Length];
         array[0] = optional;
