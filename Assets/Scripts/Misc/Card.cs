@@ -726,6 +726,28 @@ public class Card : UndoSource
     }
 
     [PunRPC]
+    void PlayAreaOrMore(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
+                new object[1] { step.player.listOfPlay.Count >= dataFile.numMisc });
+        }
+    }
+
+    [PunRPC]
+    void PlayAreaOrLess(int logged, bool undo)
+    {
+        NextStep step = Log.instance.GetCurrentStep();
+        if (!undo && step.player.InControl())
+        {
+            MultiFunction(nameof(IfElseCompleted), RpcTarget.MasterClient,
+                new object[1] { step.player.listOfPlay.Count <= dataFile.numMisc });
+        }
+    }
+
+    [PunRPC]
     void MoneyOrMore(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();

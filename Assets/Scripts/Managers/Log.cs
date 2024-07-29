@@ -284,7 +284,7 @@ public class Log : MonoBehaviour
             player.StopAllCoroutines();
         }
 
-        Popup[] allPopups = FindObjectsOfType<Popup>();
+        Popup[] allPopups = FindObjectsByType<Popup>(FindObjectsSortMode.None);
         foreach (Popup popup in allPopups)
             Destroy(popup.gameObject);
 
@@ -318,6 +318,12 @@ public class Log : MonoBehaviour
             if (tracker == amount)
             {
                 Debug.Log($"continue going at step {currentStep}: {next.instruction}");
+                foreach (Player player in Manager.instance.playersInOrder)
+                {
+                    player.SortHand();
+                    player.SortPlay();
+                }
+
                 nextUndoBar = next.canUndoThis;
                 currentStep--;
                 Continue();

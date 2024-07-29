@@ -16,7 +16,7 @@
     ],
     [
       "Desperate Robot",
-      "\"+5 Coin, take -1 Neg Crown.\"",
+      "\"+5 Coin, take -1 Neg Crown.",
       "1",
       "1",
       "1",
@@ -30,7 +30,7 @@
       "0"
     ],
     [
-      "Card Eater",
+      "Vacuum Robot",
       "You may discard 1 Card for +4 Coin.",
       "2",
       "2",
@@ -46,7 +46,7 @@
     ],
     [
       "Warehouse Robot",
-      "\"+1 Card, -1 Card.\"",
+      "\"+1 Card, -1 Card.",
       "0",
       "2",
       "1",
@@ -60,7 +60,7 @@
       "0"
     ],
     [
-      "Choices",
+      "Robot Butler",
       "Choose one: +1 Card; or +2 Coin; or +1 Battery.",
       "2",
       "4",
@@ -75,8 +75,8 @@
       "0"
     ],
     [
-      "Battery Mover",
-      "\"+1 Battery, -1 Battery\"",
+      "Energy Transferer",
+      "\"+1 Battery, -1 Battery",
       "0",
       "4",
       "1",
@@ -105,6 +105,21 @@
       "0"
     ],
     [
+      "Shopkeeping Robot",
+      "You may play 1 Card. Remove all its Battery.",
+      "2",
+      "6",
+      "1",
+      "4",
+      "You",
+      "PlayCard/RemoveBatteryFromChosen",
+      "",
+      "",
+      "",
+      "10",
+      "0"
+    ],
+    [
       "Scrap Hunter",
       "If there are 3 Battery or less among your Card in play, you may play 1 Card.",
       "4",
@@ -120,7 +135,7 @@
       "3"
     ],
     [
-      "Battery Converter",
+      "Recycling Robot",
       "You may remove 1 Battery for +2 Card.",
       "2",
       "2",
@@ -150,21 +165,6 @@
       "1"
     ],
     [
-      "Shopkeeper",
-      "You may play 1 Card. Remove all its Battery.",
-      "2",
-      "6",
-      "1",
-      "4",
-      "You",
-      "PlayCard/RemoveBatteryFromChosen",
-      "",
-      "",
-      "",
-      "10",
-      "0"
-    ],
-    [
       "Robot Doctor",
       "You may pay 5 Coin to remove -2 Neg Crown.",
       "3",
@@ -180,7 +180,7 @@
       "0"
     ],
     [
-      "Cursed Conjurer",
+      "Clumsy Builder",
       "Take -1 Neg Crown. You may play 1 Card.",
       "0",
       "4",
@@ -195,7 +195,7 @@
       "0"
     ],
     [
-      "Universal Draw",
+      "Kitchen Robot",
       "All players draw 1 Card.",
       "0",
       "6",
@@ -210,12 +210,42 @@
       "0"
     ],
     [
+      "Robot Exorcist",
+      "All players may discard 2 Card to remove -2 Neg Crown.",
+      "0",
+      "8",
+      "2",
+      "4",
+      "All",
+      "IfElse(OptionalDiscard|RemoveNeg)",
+      "2",
+      "",
+      "2",
+      "",
+      "0"
+    ],
+    [
+      "Villainous Robot",
+      "Each other player with 5 Card or more in play takes -1 Neg Crown.",
+      "4",
+      "6",
+      "2",
+      "1",
+      "Others",
+      "IfElse(PlayAreaOrMore|TakeNeg)",
+      "",
+      "",
+      "1",
+      "",
+      "5"
+    ],
+    [
       "Construction Robot",
       "You may play 1 Card. If you do, +1 Battery on it.",
       "6",
-      "10",
+      "12",
       "3",
-      "0",
+      "1",
       "You",
       "PlayCard/AddBatteryToChosen",
       "",
@@ -225,7 +255,7 @@
       "0"
     ],
     [
-      "Raider",
+      "Robot Army",
       "Each other player discards 1 Card.",
       "2",
       "8",
@@ -256,17 +286,17 @@
     ],
     [
       "Charging Station",
-      "\"+2 Battery.",
+      "\"+1 Battery, +1 Battery.",
       "4",
       "12",
       "3",
       "2",
       "You",
-      "AddBattery",
+      "AddBattery/AddBattery",
       "",
       "",
       "",
-      "2",
+      "1",
       "0"
     ],
     [
@@ -310,6 +340,21 @@
       "GainCoins",
       "",
       "3",
+      "",
+      "",
+      "0"
+    ],
+    [
+      "Rapid Prototyper",
+      "Play up to 2 Card.",
+      "8",
+      "16",
+      "4",
+      "0",
+      "You",
+      "PlayCard/PlayCard",
+      "",
+      "",
       "",
       "",
       "0"

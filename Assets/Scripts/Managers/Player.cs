@@ -145,7 +145,7 @@ public class Player : UndoSource
         {
             try
             {
-                StartInHand(Manager.instance.cardIDs[(int)step.infoToRemember[0]], 0f);
+                StartInHand(Manager.instance.cardIDs[(int)step.infoToRemember[0]]);
             }
             catch
             {
@@ -159,8 +159,8 @@ public class Player : UndoSource
             discardMe.transform.SetParent(Manager.instance.discard);
             StartCoroutine(discardMe.MoveCard(new Vector2(-2000, -330), new Vector3(0, 0, 0), 0.3f));
             Log.instance.AddText($"{this.name} discards {discardMe.name}.", logged);
+            SortHand();
         }
-        SortHand();
     }
 
     [PunRPC]
@@ -211,23 +211,20 @@ public class Player : UndoSource
             for (int i = 0; i < step.infoToRemember.Length; i++)
             {
                 Card newCard = Manager.instance.cardIDs[(int)step.infoToRemember[i]];
-                StartInHand(newCard, 0.3f);
+                StartInHand(newCard);
                 cardList += $"{newCard.name}{(i < step.infoToRemember.Length - 1 ? ", " : ".")}";
             }
             Log.instance.AddText($"{this.name} draws {step.infoToRemember.Length} Card.", logged);
+            SortHand();
         }
-        SortHand();
     }
 
-    void StartInHand(Card newCard, float time)
+    void StartInHand(Card newCard)
     {
         newCard.transform.SetParent(this.cardhand);
         newCard.transform.localPosition = new Vector2(0, -1100);
         newCard.cg.alpha = 0;
         listOfHand.Add(newCard);
-
-        if (InControl())
-            StartCoroutine(newCard.RevealCard(time));
     }
 
     public void SortHand()
@@ -246,12 +243,8 @@ public class Player : UndoSource
 
             Vector2 newPosition = new(startingX + difference * i, -535 * canvas.transform.localScale.x);
             StartCoroutine(nextCard.MoveCard(newPosition, nextCard.transform.localEulerAngles, 0.25f));
-        }
-
-        if (InControl())
-        {
-            foreach (Card card in listOfHand)
-                StartCoroutine(card.RevealCard(0.25f));
+            if (InControl())
+                StartCoroutine(nextCard.RevealCard(0.25f));
         }
     }
 
@@ -308,7 +301,7 @@ public class Player : UndoSource
             if (undo)
             {
                 listOfPlay.Remove(newCard);
-                StartInHand(newCard, 0f);
+                StartInHand(newCard);
             }
             else
             {
@@ -323,9 +316,10 @@ public class Player : UndoSource
                 if (InControl())
                     CoinRPC(-1 * newCard.dataFile.coinCost, logged);
                 newCard.BatteryRPC(this, newCard.dataFile.startingBatteries, logged);
+
+                SortHand();
+                SortPlay();
             }
-            SortHand();
-            SortPlay();
         }
     }
 
