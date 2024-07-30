@@ -172,7 +172,7 @@
       "2",
       "1",
       "You",
-      "IfElse(OptionalPayCoins|RemoveNeg)",
+      "IfElse(OptionalLoseCoins|RemoveNeg)",
       "",
       "5",
       "2",
@@ -206,6 +206,21 @@
       "1",
       "",
       "",
+      "",
+      "0"
+    ],
+    [
+      "Supply Chain",
+      "You may pay 3 Coin for +2 Battery.",
+      "1",
+      "5",
+      "2",
+      "2",
+      "You",
+      "IfElse(OptionalLoseCoins|AddBattery)",
+      "",
+      "3",
+      "2",
       "",
       "0"
     ],
@@ -357,6 +372,21 @@
       "",
       "",
       "",
+      "0"
+    ],
+    [
+      "Prison Guard",
+      "Each other player either discards 2 Card, loses 4 Coin, takes -1 Neg Crown, or removes 2 Battery, their choice.",
+      "4",
+      "12",
+      "4",
+      "0",
+      "Others",
+      "ChooseMethod(MandatoryDiscard|LoseCoins|TakeNeg|RemoveBattery)",
+      "2",
+      "4",
+      "1",
+      "2",
       "0"
     ]
   ]

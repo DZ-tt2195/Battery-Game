@@ -13,10 +13,9 @@ public class UndoSource : MonoBehaviour
 
     public void MultiFunction(string methodName, RpcTarget affects, object[] parameters = null)
     {
-        if (!methodDictionary.ContainsKey(methodName))
-            AddToMethodDictionary(methodName);
-
+        AddToMethodDictionary(methodName);
         MethodInfo info = methodDictionary[methodName];
+
         if (PhotonNetwork.IsConnected)
             pv.RPC(info.Name, affects, parameters);
         else if (info.ReturnType == typeof(IEnumerator))
@@ -27,10 +26,9 @@ public class UndoSource : MonoBehaviour
 
     public void MultiFunction(string methodName, Photon.Realtime.Player specificPlayer, object[] parameters = null)
     {
-        if (!methodDictionary.ContainsKey(methodName))
-            AddToMethodDictionary(methodName);
-
+        AddToMethodDictionary(methodName);
         MethodInfo info = methodDictionary[methodName];
+
         if (PhotonNetwork.IsConnected)
             pv.RPC(info.Name, specificPlayer, parameters);
         else if (info.ReturnType == typeof(IEnumerator))

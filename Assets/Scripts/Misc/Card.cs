@@ -61,15 +61,10 @@ public class Card : UndoSource
     protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Card).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        try
-        {
-            if (method != null && method.ReturnType == typeof(void))
-                methodDictionary.Add(methodName, method);
-        }
-        catch
-        {
+        if (method == null)
             Debug.LogError($"{this.name}: {methodName}");
-        }
+        else if (!methodDictionary.ContainsKey(methodName) && method.ReturnType == typeof(void))
+            methodDictionary.Add(methodName, method);
     }
 
     [PunRPC]
@@ -931,7 +926,7 @@ public class Card : UndoSource
     }
 
     [PunRPC]
-    void OptionalPayCoins(int logged, bool undo)
+    void OptionalLoseCoins(int logged, bool undo)
     {
         NextStep step = Log.instance.GetCurrentStep();
         if (!undo && step.player.InControl())
