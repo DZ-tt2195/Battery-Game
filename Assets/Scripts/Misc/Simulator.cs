@@ -43,7 +43,7 @@ public class Simulator : MonoBehaviour
         turnCount -= (float)(numCards / 2f);
         turnCount -= (float)(numCoins / 4f);
 
-        Debug.Log($"Turns: {turnCount:F2} + {(currentTurn-turnCount):F2}" +
+        Debug.Log($"Turns: {turnCount:F2} ({currentTurn-turnCount:F2} overshoot)" +
             $"\nCards played: {playedCards}" +
             $"\nCrown overshot: {(playedCards*3)-targetCrown}" +
             $"\nLeftover cards: {numCards}" +

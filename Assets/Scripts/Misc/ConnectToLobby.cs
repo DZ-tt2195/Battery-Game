@@ -11,13 +11,8 @@ public class ConnectToLobby : MonoBehaviourPunCallbacks
 
     public void Start()
     {
-        localPlay.onClick.AddListener(LocalPlay);
+        localPlay.onClick.AddListener(() => SceneManager.LoadScene("2. Game"));
         Application.targetFrameRate = 60;
-    }
-
-    void LocalPlay()
-    {
-        SceneManager.LoadScene("2. Game");
     }
 
     public void Join(string region)

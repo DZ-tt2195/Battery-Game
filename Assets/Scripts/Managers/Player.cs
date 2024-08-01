@@ -68,15 +68,10 @@ public class Player : UndoSource
     protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Player).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        try
-        {
-            if (method != null && method.ReturnType == typeof(void))
-                methodDictionary.Add(methodName, method);
-        }
-        catch
-        {
-            Debug.LogError(methodName);
-        }
+        if (method == null)
+            Debug.LogError($"{this.name}: {methodName}");
+        else if (!methodDictionary.ContainsKey(methodName) && method.ReturnType == typeof(void))
+            methodDictionary.Add(methodName, method);
     }
 
     internal void AssignInfo(int position)
@@ -258,37 +253,40 @@ public class Player : UndoSource
         float multiplier = firstCalc / 0.25f;
         UpdateButton();
 
-        for (int i = 0; i<6; i++)
+        List<Card> firstHalf = new();
+        List<Card> secondHalf = new();
+        for (int i = 0; i<listOfPlay.Count; i++)
         {
-            try
-            {
-                Card nextCard = listOfPlay[i];
-                nextCard.transform.SetSiblingIndex(i);
-                Vector2 newPosition = new(-800 + (62.5f * multiplier * i), 175 * canvas.transform.localScale.x);
-                StartCoroutine(nextCard.MoveCard(newPosition, nextCard.transform.localEulerAngles, 0.3f));
-            }
-            catch
-            {
-                break;
-            }
-        }
-        for (int i = 0; i < 6; i++)
-        {
-            try
-            {
-                Card nextCard = listOfPlay[i+6];
-                nextCard.transform.SetSiblingIndex(i+6);
-                Vector2 newPosition = new(-800 + (62.5f * multiplier * i), -185 * canvas.transform.localScale.x);
-                StartCoroutine(nextCard.MoveCard(newPosition, nextCard.transform.localEulerAngles, 0.3f));
-            }
-            catch
-            {
-                break;
-            }
+            Card nextCard = listOfPlay[i];
+            StartCoroutine(nextCard.RevealCard(0.25f));
+            nextCard.transform.SetSiblingIndex(i);
+            if (i % 2 == 0)
+                firstHalf.Add(nextCard);
+            else
+                secondHalf.Add(nextCard);
         }
 
-        foreach (Card card in listOfPlay)
-            StartCoroutine(card.RevealCard(0.25f));
+        for (int i = 0; i<firstHalf.Count; i++)
+        {
+            Card nextCard = firstHalf[i];
+            float startingX = -250 - (150 * multiplier);
+            float difference = (firstHalf.Count >= 7) ? (-250 - (150 * multiplier)) * -2 / (firstHalf.Count - 1) : 100 + (50 * multiplier);
+            float yPosition = 215 * canvas.transform.localScale.x;
+
+            Vector2 newPosition = new(startingX + difference * i, yPosition);
+            StartCoroutine(nextCard.MoveCard(newPosition, nextCard.transform.localEulerAngles, 0.25f));
+        }
+
+        for (int i = 0; i<secondHalf.Count; i++)
+        {
+            Card nextCard = secondHalf[i];
+            float startingX = -250 - (150 * multiplier);
+            float difference = (secondHalf.Count >= 7) ? (-250 - (150 * multiplier)) * -2 / (secondHalf.Count - 1) : 100 + (50 * multiplier);
+            float yPosition = -150 * canvas.transform.localScale.x;
+
+            Vector2 newPosition = new(startingX + difference * i, yPosition);
+            StartCoroutine(nextCard.MoveCard(newPosition, nextCard.transform.localEulerAngles, 0.25f));
+        }
     }
 
     [PunRPC]

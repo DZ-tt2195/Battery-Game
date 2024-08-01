@@ -55,15 +55,10 @@ public class Manager : UndoSource
     protected override void AddToMethodDictionary(string methodName)
     {
         MethodInfo method = typeof(Manager).GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        try
-        {
-            if (method != null && method.ReturnType == typeof(void))
-                methodDictionary.Add(methodName, method);
-        }
-        catch
-        {
-            Debug.LogError(methodName);
-        }
+        if (method == null)
+            Debug.LogError($"{this.name}: {methodName}");
+        else if (!methodDictionary.ContainsKey(methodName) && method.ReturnType == typeof(void))
+            methodDictionary.Add(methodName, method);
     }
 
     private void FixedUpdate()
@@ -115,7 +110,7 @@ public class Manager : UndoSource
 
     void GetPlayers()
     {
-        List<Player> listOfPlayers = FindObjectsOfType<Player>().ToList();
+        List<Player> listOfPlayers = FindObjectsByType<Player>(FindObjectsSortMode.None).ToList();
         int counter = 0;
         while (listOfPlayers.Count > 0)
         {
@@ -233,6 +228,14 @@ public class Manager : UndoSource
 
 #region Game End
 
+    public bool PlayerWon()
+    {
+        List<Player> playerScoresInOrder = playersInOrder.OrderByDescending(player => player.CalculateScore()).ToList();
+        bool topScore = (playerScoresInOrder[0].CalculateScore() >= 20);
+        bool notTie = (playerScoresInOrder.Count == 1) || playerScoresInOrder[0].CalculateScore() > playerScoresInOrder[1].CalculateScore();
+        return (topScore && notTie);
+    }
+
     [PunRPC]
     public void DisplayEnding(int resignPosition)
     {
@@ -240,7 +243,7 @@ public class Manager : UndoSource
         endScreen.gameObject.SetActive(true);
         quitGame.onClick.AddListener(Leave);
 
-        Popup[] allPopups = FindObjectsOfType<Popup>();
+        Popup[] allPopups = FindObjectsByType<Popup>(FindObjectsSortMode.None);
         foreach (Popup popup in allPopups)
             Destroy(popup.gameObject);
 
@@ -284,16 +287,6 @@ public class Manager : UndoSource
         {
             SceneManager.LoadScene("0. Loading");
         }
-    }
-
-    public bool PlayerWon()
-    {
-        List<Player> playerScoresInOrder = playersInOrder.OrderByDescending(player => player.CalculateScore()).ToList();
-        bool topScore = (playerScoresInOrder[0].CalculateScore() >= 20);
-        bool notTie = (playerScoresInOrder.Count == 1) ? true :
-            playerScoresInOrder[0].CalculateScore() > playerScoresInOrder[1].CalculateScore();
-
-        return (topScore && notTie);
     }
 
 #endregion
