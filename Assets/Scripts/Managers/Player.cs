@@ -321,6 +321,14 @@ public class Player : UndoSource
         }
     }
 
+    public int TotalBatteries()
+    {
+        int totalBatteries = 0;
+        foreach (Card card in this.listOfPlay)
+            totalBatteries += card.batteries;
+        return totalBatteries;
+    }
+
     #endregion
 
 #region Resources

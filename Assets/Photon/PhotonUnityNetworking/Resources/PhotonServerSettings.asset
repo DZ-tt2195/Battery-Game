@@ -155,6 +155,12 @@ MonoBehaviour:
   - PlayAreaOrLess
   - PlayAreaOrMore
   - OptionalLoseCoins
+  - AddBatteryToMultiple
+  - AddBatteryToOne
+  - OptionalRemoveBatteryFromMultiple
+  - OptionalRemoveBatteryFromOne
+  - RemoveBatteryFromMultiple
+  - RemoveBatteryFromOne
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 0

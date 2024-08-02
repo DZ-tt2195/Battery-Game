@@ -46,17 +46,17 @@
     ],
     [
       "Recharge",
-      "\"+1 Battery, +1 Battery.\"",
+      "\"+2 Battery.\"",
       "4",
       "",
       "",
       "",
       "You",
-      "AddBattery/AddBattery/ResolveRobots",
+      "AddBatteryToMultiple/ResolveRobots",
       "",
       "",
       "",
-      "1",
+      "2",
       "0"
     ],
     [
