@@ -23,7 +23,6 @@ public class Manager : UndoSource
     public Transform deck;
     public Transform discard;
     public Transform actions;
-    public Transform events;
 
     [Foldout("Animation", true)]
     [ReadOnly] public float opacity = 1;
@@ -34,7 +33,6 @@ public class Manager : UndoSource
     [ReadOnly] public List<Player> playersInOrder = new();
     [ReadOnly] public List<Card> cardIDs = new();
     [ReadOnly] public List<Card> listOfActions = new();
-    [ReadOnly] public List<Card> listOfEvents = new();
     [ReadOnly] public int turnNumber { get; private set; }
 
     [Foldout("Ending", true)]
@@ -242,6 +240,7 @@ public class Manager : UndoSource
         StopCoroutine(nameof(PlayUntilFinish));
         endScreen.gameObject.SetActive(true);
         quitGame.onClick.AddListener(Leave);
+        Log.instance.DisplayUndoBar(false);
 
         Popup[] allPopups = FindObjectsByType<Popup>(FindObjectsSortMode.None);
         foreach (Popup popup in allPopups)

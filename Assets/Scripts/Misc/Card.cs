@@ -1186,11 +1186,7 @@ public class Card : UndoSource
         }
         else if (!undo && step.player.InControl())
         {
-            int totalBatteries = 0;
-            foreach (Card card in step.player.listOfPlay)
-                totalBatteries += card.batteries;
-
-            MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { totalBatteries });
+            MultiFunction(nameof(SetAllStats), RpcTarget.All, new object[1] { step.player.TotalBatteries() });
             MultiFunction(nameof(NextMethod), RpcTarget.MasterClient, new object[1] { logged });
         }
     }

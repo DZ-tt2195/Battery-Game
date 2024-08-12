@@ -197,10 +197,10 @@ public class Log : MonoBehaviour
         if (currentStep < historyStack.Count-1)
         {
             currentStep++;
+            NextStep nextUp = GetCurrentStep();
+            Debug.Log($"resolve step {currentStep}: {nextUp.instruction}");
             if (!PhotonNetwork.IsConnected || PhotonNetwork.IsMasterClient)
             {
-                NextStep nextUp = GetCurrentStep();
-                //Debug.Log($"resolve step {currentStep}: {nextUp.instruction}");
                 nextUp.source.MultiFunction(nextUp.instruction, RpcTarget.All, new object[2] { nextUp.logged, false });
             }
         }
@@ -243,7 +243,7 @@ public class Log : MonoBehaviour
 
 #region Undos
 
-    void DisplayUndoBar(bool flash)
+    public void DisplayUndoBar(bool flash)
     {
         undosInLog.RemoveAll(item => item == null);
 

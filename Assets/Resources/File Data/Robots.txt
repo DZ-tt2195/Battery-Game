@@ -210,6 +210,21 @@
       "0"
     ],
     [
+      "Arcade Cabinet",
+      "\"+1 Coin per Battery on this.\"",
+      "2",
+      "10",
+      "2",
+      "4",
+      "You",
+      "SetToBatteriesHere/GainCoins",
+      "",
+      "",
+      "",
+      "",
+      "1"
+    ],
+    [
       "Robot Doctor",
       "You may pay 5 Coin to remove -2 Neg Crown.",
       "3",
@@ -418,6 +433,36 @@
       "",
       "",
       "0"
+    ],
+    [
+      "Banking Robot",
+      "\"+1 Coin per 2 Coin you have (round down).",
+      "5",
+      "15",
+      "4",
+      "1",
+      "You",
+      "SetToCoins/GainCoins",
+      "",
+      "",
+      "",
+      "",
+      "-2"
+    ],
+    [
+      "Research Robot",
+      "\"+1 Card per 3 Battery among your Card.\"",
+      "4",
+      "18",
+      "4",
+      "3",
+      "You",
+      "SetToTotalBatteries/DrawCards",
+      "",
+      "",
+      "",
+      "",
+      "-3"
     ]
   ]
 }
